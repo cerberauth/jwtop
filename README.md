@@ -1,6 +1,9 @@
 [![Join Discord](https://img.shields.io/discord/1242773130137833493?label=Discord&style=for-the-badge)](https://www.cerberauth.com/community)
 [![GitHub Workflow Status](https://img.shields.io/github/actions/workflow/status/cerberauth/jwtop/ci.yml?branch=main&label=core%20build&style=for-the-badge)](https://github.com/cerberauth/jwtop/actions/workflows/ci.yml)
 ![Latest version](https://img.shields.io/github/v/release/cerberauth/jwtop?sort=semver&style=for-the-badge)
+![Codecov](https://img.shields.io/codecov/c/gh/cerberauth/jwtop?token=BD1WPXJDAW&style=for-the-badge)
+[![Go Report Card](https://goreportcard.com/badge/github.com/cerberauth/jwtop?style=for-the-badge)](https://goreportcard.com/report/github.com/cerberauth/jwtop)
+[![GoDoc reference](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://godoc.org/github.com/cerberauth/jwtop)
 [![Github Repo Stars](https://img.shields.io/github/stars/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop)
 ![License](https://img.shields.io/github/license/cerberauth/jwtop?style=for-the-badge)
 
