@@ -1,0 +1,155 @@
+version: 2
+
+project_name: jwtop
+
+before:
+  hooks:
+    - go mod tidy
+    - go generate ./...
+
+builds:
+  - env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+      - windows
+      - darwin
+
+gomod:
+  proxy: true
+
+checksum:
+  name_template: "checksums.txt"
+
+source:
+  enabled: true
+
+archives:
+  - format: tar.gz
+    name_template: >-
+      {{ .ProjectName }}_
+      {{- title .Os }}_
+      {{- if eq .Arch "amd64" }}x86_64
+      {{- else if eq .Arch "386" }}i386
+      {{- else }}{{ .Arch }}{{ end }}
+      {{- if .Arm }}v{{ .Arm }}{{ end }}
+    # use zip for windows archives
+    format_overrides:
+    - goos: windows
+      format: zip
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+sboms:
+  - id: syft-archive
+    artifacts: archive
+
+signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    certificate: "${artifact}.pem"
+    args:
+      - sign-blob
+      - "--output-certificate=${certificate}"
+      - "--output-signature=${signature}"
+      - "${artifact}"
+      - "--yes"
+    artifacts: checksum
+    output: true
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
+
+milestones:
+  - repo:
+      owner: cerberauth
+      name: jwtop
+    close: true
+    fail_on_error: false
+
+brews:
+  - name: "{{ .ProjectName }}"
+    description: "Scan your APIs for security vulnerabilities and weaknesses"
+    license: "MIT"
+    repository:
+      owner: cerberauth
+      name: "{{ .ProjectName }}"
+    homepage: https://www.cerberauth.com/
+    commit_author:
+      name: Emmanuel Gautier
+      email: emmanuel@cerberauth.com
+
+chocolateys:
+  - owners: CerberAuth
+    authors: Emmanuel Gautier
+    project_url: https://www.cerberauth.com/?utm_source=chocolatey
+    icon_url: "https://avatars.githubusercontent.com/u/127022998"
+    license_url: https://github.com/cerberauth/jwtop/blob/main/LICENSE
+    require_license_acceptance: false
+    project_source_url: https://github.com/cerberauth/jwtop
+    docs_url: https://www.cerberauth.com/docs?utm_source=chocolatey
+    bug_tracker_url: https://github.com/cerberauth/jwtop/issues
+    tags: "security vulnerability developer"
+    summary: jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+    skip_publish: false
+    api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
+    source_repo: "https://push.chocolatey.org/"
+    description: |
+      jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+
+nfpms:
+  - package_name: "{{ .ProjectName }}"
+    vendor: CerberAuth
+    homepage: https://www.cerberauth.com/?utm_source=nfpms
+    maintainer: Emmanuel Gautier <emmanuel@cerberauth.com>
+    description: |-
+      jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+    license: "MIT"
+    formats:
+      - apk
+      - deb
+      - rpm
+      - termux.deb
+      - archlinux
+
+snapcrafts:
+  - title: jwtop
+    publish: true
+    summary: "jwtop"
+    description: "jwtop"
+    license: MIT
+    apps:
+      jwtop:
+        command: jwtop
+        plugs:
+          - network
+          - network-bind
+
+dockers:
+  - image_templates:
+      - "cerberauth/jwtop:{{ .Tag }}"
+      - "cerberauth/jwtop:v{{ .Major }}"
+      - "cerberauth/jwtop:v{{ .Major }}.{{ .Minor }}"
+      - "cerberauth/jwtop:latest"
+      - "ghcr.io/cerberauth/jwtop:{{ .Tag }}"
+      - "ghcr.io/cerberauth/jwtop:v{{ .Major }}"
+      - "ghcr.io/cerberauth/jwtop:v{{ .Major }}.{{ .Minor }}"
+      - "ghcr.io/cerberauth/jwtop:latest"
+    dockerfile: .docker/Dockerfile-goreleaser
+
+docker_signs:
+  - cmd: cosign
+    env:
+      - COSIGN_EXPERIMENTAL=1
+    artifacts: images
+    output: true
+    args:
+      - "sign"
+      - "${artifact}"
+      - "--yes"

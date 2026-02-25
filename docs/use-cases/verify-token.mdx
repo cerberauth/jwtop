@@ -1,0 +1,57 @@
+---
+title: Verify a token
+description: Validate a JWT signature using an HMAC secret, a PEM key file, or a JWKS endpoint.
+---
+
+# Verify a token
+
+Use `jwtop verify` to confirm that a token's signature is valid and that its standard claims (`exp`, `nbf`, `iss`, etc.) pass validation. The command exits `0` on success and `1` on failure.
+
+## HMAC secret (HS256 / HS384 / HS512)
+
+```sh
+jwtop verify $TOKEN --secret mysecret
+```
+
+## RSA or EC key file (RS256, ES256, …)
+
+Provide the path to a PEM-encoded public key file (or a private key — the public part is automatically extracted):
+
+```sh
+jwtop verify $TOKEN --key /path/to/public.pem
+```
+
+Generate a test key pair:
+
+```sh
+# RSA
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+
+# EC (P-256)
+openssl ecparam -name prime256v1 -genkey -noout -out private.pem
+openssl ec -in private.pem -pubout -out public.pem
+```
+
+## JWKS endpoint
+
+When the issuer publishes a JWKS (e.g. an OAuth 2.0 / OIDC provider), pass the endpoint URL:
+
+```sh
+jwtop verify $TOKEN --jwks https://example.com/.well-known/jwks.json
+```
+
+The matching key is selected by the `kid` header field. If no `kid` is present, selection falls back to the `alg` field.
+
+## Scripting
+
+Because `jwtop verify` exits `1` on invalid tokens, it integrates naturally with shell scripts:
+
+```sh
+if jwtop verify $TOKEN --secret "$SECRET"; then
+  echo "Token accepted"
+else
+  echo "Token rejected" >&2
+  exit 1
+fi
+```

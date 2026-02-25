@@ -1,0 +1,64 @@
+---
+title: Strip or remove a token signature
+description: Produce an unsigned or alg=none token for testing signature validation logic.
+---
+
+# Strip or remove a token signature
+
+Some security tests require tokens with no valid signature — for example, checking that your server rejects unsigned tokens, or testing behaviour when `alg` is `"none"`. `jwtop sign --alg none` covers this case.
+
+## Produce an alg=none token
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+The resulting token has its header `alg` field set to `"none"` and an empty signature segment:
+
+```
+eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTQyIn0.
+```
+
+No `--secret` or `--key` flag is needed.
+
+## When to use this
+
+**Testing that your server rejects alg=none**
+
+A correctly configured JWT library should reject tokens with `alg=none` unless explicitly configured to allow it. Use this to verify that your server does the right thing:
+
+```sh
+UNSIGNED=$(jwtop sign $TOKEN --alg none)
+
+# Expect a 401
+curl -si -H "Authorization: Bearer $UNSIGNED" https://api.example.com/me \
+  | head -1
+```
+
+**Checking claim validation independent of signature**
+
+If you want to test claim parsing logic (expired token, wrong issuer, etc.) in a context where the signature check is already disabled in your test harness:
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+## Difference between alg=none and an empty signature
+
+| | `--alg none` | `WithoutSignature` (library) |
+|---|---|---|
+| Header `alg` field | Changed to `"none"` | Unchanged |
+| Signature segment | Empty | Empty |
+
+Use `--alg none` from the CLI. The `WithoutSignature` method on `editor.TokenEditor` is available in the Go library when you need the header alg preserved:
+
+```go
+import "github.com/cerberauth/jwtop/jwt/editor"
+
+te, _ := editor.NewTokenEditor(existingToken)
+noSig, err := te.WithoutSignature()
+```
+
+## Security note
+
+Tokens with `alg=none` should never be accepted by a production server. This feature is intended for security testing and local development only.

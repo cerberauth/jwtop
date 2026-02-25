@@ -1,0 +1,58 @@
+---
+title: Inspect an unknown JWT
+description: Decode and read a JWT's header and claims without needing the signing key.
+---
+
+# Inspect an unknown JWT
+
+When you receive a JWT from a third-party service, a log, or a debug session, you often want to read its content before you have the signing key or know the algorithm. `jwtop decode` does this without any key material.
+
+## With the CLI
+
+```sh
+jwtop decode <token>
+```
+
+Example — inspect a token from an environment variable:
+
+```sh
+jwtop decode $ACCESS_TOKEN
+```
+
+Output:
+
+```
+Header:
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "abc123"
+}
+
+Claims:
+{
+  "sub": "user-42",
+  "iss": "https://auth.example.com",
+  "aud": "api.example.com",
+  "exp": 1740000000,
+  "iat": 1739996400,
+  "roles": ["admin", "editor"]
+}
+
+Signature:
+<base64url>
+```
+
+## What to look for
+
+| Field | Description |
+|---|---|
+| `alg` | Signing algorithm — determines what key type to use for verification |
+| `kid` | Key ID — use with a JWKS endpoint to fetch the right public key |
+| `exp` | Expiration timestamp (Unix) — check if the token is still valid |
+| `iss` | Issuer — confirms the token origin |
+| `sub` | Subject — the principal the token represents |
+
+## Next step
+
+Once you know the algorithm and have the key, use [`jwtop verify`](../cli/verify) to confirm the signature.

@@ -1,0 +1,51 @@
+---
+title: verify
+description: Verify a JWT signature and validate its standard claims.
+---
+
+# verify
+
+Verify the signature of a JWT and validate standard claims (`exp`, `nbf`, `iss`, etc.). Exits with code `1` if the token is invalid or the signature does not match.
+
+## Usage
+
+```sh
+jwtop verify <token> [--secret <secret>] [--key <pem-file>] [--jwks <uri>]
+```
+
+Exactly one key source must be provided.
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--secret` | HMAC secret string (for HS256, HS384, HS512) |
+| `--key` | Path to a PEM-encoded public or private key file (RSA, EC, Ed25519) |
+| `--jwks` | URL of a JWKS endpoint |
+
+## Examples
+
+**HMAC secret**
+
+```sh
+jwtop verify $TOKEN --secret mysecret
+```
+
+**RSA or EC public key file**
+
+```sh
+jwtop verify $TOKEN --key /path/to/public.pem
+```
+
+**JWKS endpoint**
+
+```sh
+jwtop verify $TOKEN --jwks https://example.com/.well-known/jwks.json
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Token is valid |
+| `1` | Token is invalid, signature mismatch, or structural error |

@@ -1,0 +1,52 @@
+---
+title: Re-sign a token
+description: Change the signing algorithm or key of an existing JWT while keeping its claims.
+---
+
+# Re-sign a token
+
+`jwtop sign` takes an existing JWT, preserves its claims, and re-signs it with a different algorithm or key. The original token does not need to have a valid signature — it is parsed without verification.
+
+## Change the HMAC secret
+
+Useful when rotating secrets and you want to produce a token that verifies against the new key:
+
+```sh
+jwtop sign $TOKEN --alg HS256 --secret newsecret
+```
+
+## Switch from HMAC to asymmetric (HS256 → RS256)
+
+```sh
+jwtop sign $TOKEN --alg RS256 --key /path/to/private.pem
+```
+
+## Switch from asymmetric to HMAC (RS256 → HS256)
+
+```sh
+jwtop sign $TOKEN --alg HS256 --secret mysecret
+```
+
+## Upgrade to a stronger algorithm
+
+```sh
+# From RS256 to RS512
+jwtop sign $TOKEN --alg RS512 --key /path/to/private.pem
+
+# From HS256 to ES256
+openssl ecparam -name prime256v1 -genkey -noout -out ec-private.pem
+jwtop sign $TOKEN --alg ES256 --key ec-private.pem
+```
+
+## Round-trip: re-sign and verify
+
+```sh
+RESIGNED=$(jwtop sign $TOKEN --alg HS256 --secret newsecret)
+jwtop verify $RESIGNED --secret newsecret
+```
+
+## Notes
+
+- All original claims (`sub`, `iss`, `exp`, custom claims) are kept verbatim.
+- The header `alg` field is updated to match the new algorithm.
+- To remove the signature rather than change it, see [Strip or remove a token signature](./strip-signature).

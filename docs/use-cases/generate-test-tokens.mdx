@@ -1,0 +1,66 @@
+---
+title: Generate tokens for testing
+description: Mint JWTs for development, CI pipelines, and integration tests.
+---
+
+# Generate tokens for testing
+
+`jwtop create` lets you mint arbitrary JWTs from the command line — no server or auth infrastructure required. This is useful for seeding integration tests, populating CI environment variables, or reproducing production scenarios locally.
+
+## Quick token for a test suite
+
+```sh
+jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 --iss myapp --exp 1h --iat
+```
+
+Capture the output in a variable:
+
+```sh
+export TEST_TOKEN=$(jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 --exp 1h --iat)
+```
+
+## Token with custom claims
+
+Use `--claim key=value` (repeatable) to add any payload field:
+
+```sh
+jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 \
+  --claim role=admin \
+  --claim plan=pro \
+  --claim verified=true \
+  --claim account_id=9001
+```
+
+Values are auto-parsed: `9001` becomes an integer, `true` becomes a boolean, everything else stays a string.
+
+## Short-lived tokens (expiry testing)
+
+```sh
+# Expires in 30 seconds — useful for testing expiry handling
+jwtop create --alg HS256 --secret testsecret --sub user-1 --exp 30s
+```
+
+## Asymmetric key tokens (RS256 / ES256)
+
+```sh
+# Generate a key pair once
+openssl genrsa -out test-private.pem 2048
+openssl rsa -in test-private.pem -pubout -out test-public.pem
+
+# Mint a token
+jwtop create --alg RS256 --key test-private.pem --sub user-42 --exp 1h
+
+# Verify it
+jwtop verify $TOKEN --key test-public.pem
+```
+
+## In a CI pipeline (GitHub Actions example)
+
+```yaml
+- name: Generate test JWT
+  run: |
+    echo "TEST_TOKEN=$(jwtop create --alg HS256 --secret ${{ secrets.TEST_SECRET }} --sub ci-user --exp 1h)" >> $GITHUB_ENV
+```

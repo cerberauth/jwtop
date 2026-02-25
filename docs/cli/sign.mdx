@@ -1,0 +1,48 @@
+---
+title: sign
+description: Re-sign an existing JWT with a different algorithm or key.
+---
+
+# sign
+
+Parse an existing JWT and re-sign it with a new algorithm and/or key. The original claims are preserved. Use `--alg none` to strip the signature entirely.
+
+## Usage
+
+```sh
+jwtop sign <token> --alg <alg> (--secret <secret> | --key <pem-file>)
+```
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--alg` | Target signing algorithm, or `none` **(required)** |
+| `--secret` | HMAC secret string |
+| `--key` | Path to a PEM-encoded private key file |
+
+## Examples
+
+**Change the signing key (same algorithm)**
+
+```sh
+jwtop sign $TOKEN --alg HS256 --secret newsecret
+```
+
+**Switch to an asymmetric algorithm**
+
+```sh
+jwtop sign $TOKEN --alg RS256 --key /path/to/private.pem
+```
+
+**Strip the signature (alg=none)**
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+## Notes
+
+- The input token's claims and registered claim values are kept unchanged.
+- `--alg none` does not require a key. The resulting token has an empty signature segment and its header `alg` is set to `"none"`.
+- See [Strip or remove a token signature](../use-cases/strip-signature) for context on when this is useful.

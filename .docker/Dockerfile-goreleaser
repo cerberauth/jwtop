@@ -1,0 +1,6 @@
+FROM gcr.io/distroless/static-debian12:nonroot
+
+COPY --chown=nonroot:nonroot jwtop /usr/bin/jwtop
+
+ENTRYPOINT ["jwtop"]
+CMD ["jwtop"]

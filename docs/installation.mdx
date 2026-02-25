@@ -1,0 +1,69 @@
+---
+title: Installation
+description: Install jwtop as a CLI tool or as a Go library.
+---
+
+# Installation
+
+## CLI
+
+Install the latest binary with `go install`:
+
+```sh
+go install github.com/cerberauth/jwtop@latest
+```
+
+Verify the installation:
+
+```sh
+jwtop version
+```
+
+### Other installation methods
+
+**Docker**
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop <command>
+```
+
+**From source**
+
+```sh
+git clone https://github.com/cerberauth/jwtop.git
+cd jwtop
+go build -o jwtop .
+```
+
+## Library
+
+The library is split into two packages:
+
+| Package | Purpose |
+|---|---|
+| `github.com/cerberauth/jwtop/jwt` | Decode, verify, create tokens; key utilities |
+| `github.com/cerberauth/jwtop/jwt/editor` | Re-sign and mutate existing tokens |
+
+Add the packages you need:
+
+```sh
+# Core operations
+go get github.com/cerberauth/jwtop/jwt
+
+# Token editor (re-sign, mutate)
+go get github.com/cerberauth/jwtop/jwt/editor
+```
+
+Then import them:
+
+```go
+import (
+    "github.com/cerberauth/jwtop/jwt"
+    "github.com/cerberauth/jwtop/jwt/editor"
+)
+```
+
+## Requirements
+
+- Go 1.24 or later (for the library)
+- Any platform supported by the Go toolchain (for the CLI)

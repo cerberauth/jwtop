@@ -1,0 +1,43 @@
+---
+title: decode
+description: Decode and pretty-print a JWT without verifying the signature.
+---
+
+# decode
+
+Parse and display the header, claims, and signature of a JWT without verifying the signature. Useful for quickly inspecting a token regardless of whether you have the signing key.
+
+## Usage
+
+```sh
+jwtop decode <token>
+```
+
+## Example
+
+```sh
+jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+Output:
+
+```
+Header:
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+
+Claims:
+{
+  "sub": "1234567890"
+}
+
+Signature:
+dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+## Notes
+
+- The signature is **not** verified. Use [`verify`](./verify) to validate a token.
+- The command exits `1` if the token is structurally malformed (not a valid JWT).

@@ -1,0 +1,25 @@
+---
+title: CLI reference
+description: Overview of all jwtop CLI commands.
+---
+
+# CLI reference
+
+The `jwtop` CLI provides four commands covering the full JWT workflow.
+
+| Command | Description |
+|---|---|
+| [`decode`](./decode) | Decode and pretty-print a token without verifying its signature |
+| [`verify`](./verify) | Verify a token's signature and standard claims |
+| [`create`](./create) | Create and sign a new token from scratch |
+| [`sign`](./sign) | Re-sign an existing token with a different algorithm or key |
+
+## Global usage
+
+```
+jwtop <command> [flags]
+jwtop --help
+jwtop version
+```
+
+All commands exit `0` on success and `1` on error. Verification failure also exits `1`.

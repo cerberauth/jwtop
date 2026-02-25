@@ -1,0 +1,52 @@
+---
+title: Supported algorithms
+description: Complete list of JWT signing algorithms supported by jwtop.
+---
+
+# Supported algorithms
+
+jwtop supports all algorithm families defined by [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518).
+
+## Algorithm table
+
+| Family | Algorithms | Key type |
+|---|---|---|
+| HMAC | `HS256`, `HS384`, `HS512` | Shared secret (`[]byte`) |
+| RSA PKCS#1 v1.5 | `RS256`, `RS384`, `RS512` | RSA private/public key |
+| RSA-PSS | `PS256`, `PS384`, `PS512` | RSA private/public key |
+| ECDSA | `ES256`, `ES384`, `ES512` | EC private/public key |
+| None | `none` | No key required |
+
+## Algorithm selection guide
+
+**Choose HMAC (HS256 / HS384 / HS512)** when:
+- The same service both issues and verifies tokens.
+- Simplicity and performance are priorities.
+- The secret can be stored securely on both sides.
+
+**Choose RSA or EC (RS256, ES256, …)** when:
+- Multiple services need to verify tokens without access to the signing key.
+- You publish a JWKS endpoint for key discovery.
+- You need to rotate keys without sharing secrets.
+
+**ES256 vs RS256**: ECDSA keys are smaller and operations are faster at equivalent security levels. Prefer ES256 for new deployments.
+
+**PS256 vs RS256**: RSA-PSS (`PS*`) is more resistant to certain theoretical attacks than PKCS#1 v1.5 (`RS*`). Both are acceptable in practice.
+
+## Generating keys
+
+Use standard tools to generate PEM key pairs:
+
+```sh
+# RSA 2048-bit
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+
+# EC P-256 (for ES256)
+openssl ecparam -name prime256v1 -genkey -noout -out private.pem
+openssl ec -in private.pem -pubout -out public.pem
+
+# EC P-384 (for ES384)
+openssl ecparam -name secp384r1 -genkey -noout -out private.pem
+openssl ec -in private.pem -pubout -out public.pem
+```
