@@ -11,7 +11,7 @@ import (
 // VerifyOptions holds the configuration for token verification.
 // Exactly one of Secret, KeyPEM, or JWKSURI must be set.
 type VerifyOptions struct {
-	Secret  []byte // HMAC secret (for HS256, HS384, HS512).
+	Secret  []byte //nolint:gosec // HMAC secret (for HS256, HS384, HS512).
 	KeyPEM  []byte // PEM-encoded public key bytes (RSA, EC, or Ed25519); a private key is also accepted and the public part is extracted.
 	JWKSURI string // URL of a JWKS endpoint; the matching key is selected by kid, falling back to alg.
 }

@@ -61,6 +61,7 @@ func Execute(v string) {
 		}
 
 		fmt.Fprintln(os.Stderr, err)
+		// nolint: gocritic // false positive
 		os.Exit(1)
 	}
 }
