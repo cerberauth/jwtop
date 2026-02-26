@@ -7,7 +7,7 @@
 [![Github Repo Stars](https://img.shields.io/github/stars/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop)
 ![License](https://img.shields.io/github/license/cerberauth/jwtop?style=for-the-badge)
 
-# jwtop
+# JWTop
 
 JWT operations library and CLI for Go. Decode, verify, create, and sign JSON Web Tokens.
 
