@@ -119,7 +119,7 @@ nfpms:
       - archlinux
 
 snapcrafts:
-  - title: JWTop
+  - title: jwtop
     publish: true
     summary: "JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses."
     description: "JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses."
