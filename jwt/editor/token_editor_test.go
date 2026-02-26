@@ -95,3 +95,80 @@ func TestTokenEditor_SignWithMethodAndKey_KeepClaimsOrder(t *testing.T) {
 	assert.NotEmpty(t, token)
 	assert.Equal(t, expectedToken, newToken)
 }
+
+func TestNewTokenEditor_InvalidToken(t *testing.T) {
+	_, err := editor.NewTokenEditor("not-a-jwt")
+	assert.Error(t, err)
+}
+
+func TestNewTokenEditor_ValidToken(t *testing.T) {
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+	e, err := editor.NewTokenEditor(token)
+	assert.NoError(t, err)
+	assert.NotNil(t, e)
+	assert.NotNil(t, e.GetToken())
+}
+
+func TestNewEmptyTokenEditor(t *testing.T) {
+	e, err := editor.NewEmptyTokenEditor()
+	assert.NoError(t, err)
+	assert.NotNil(t, e)
+	claims, ok := e.GetToken().Claims.(libjwt.MapClaims)
+	assert.True(t, ok)
+	assert.Empty(t, claims)
+}
+
+func TestTokenEditor_Clone_IsIndependent(t *testing.T) {
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+	e, _ := editor.NewTokenEditor(token)
+	clone := e.Clone()
+
+	assert.NotSame(t, e, clone)
+	assert.Equal(t, e.GetToken().Claims, clone.GetToken().Claims)
+}
+
+func TestTokenEditor_SignWithKey_UsesOriginalMethod(t *testing.T) {
+	token := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c"
+	e, _ := editor.NewTokenEditor(token)
+
+	newToken, err := e.SignWithKey([]byte("mysecret"))
+	assert.NoError(t, err)
+	assert.NotEmpty(t, newToken)
+
+	parsed, _, err := new(libjwt.Parser).ParseUnverified(newToken, libjwt.MapClaims{})
+	assert.NoError(t, err)
+	assert.Equal(t, libjwt.SigningMethodHS256, parsed.Method)
+}
+
+func TestNewTokenEditorWithValidClaims_WhenExpIsValid(t *testing.T) {
+	futureExp := time.Now().Add(10 * time.Minute).Unix()
+	tok := libjwt.NewWithClaims(libjwt.SigningMethodHS256, libjwt.MapClaims{
+		"sub": "1234567890",
+		"exp": futureExp,
+	})
+	tokenString, _ := tok.SignedString([]byte("secret"))
+
+	e, _ := editor.NewTokenEditor(tokenString)
+	newEditor := editor.NewTokenEditorWithValidClaims(e)
+
+	expTime, err := newEditor.GetToken().Claims.(libjwt.MapClaims).GetExpirationTime()
+	assert.NoError(t, err)
+	assert.NotNil(t, expTime)
+	assert.InDelta(t, futureExp, expTime.Unix(), 5)
+}
+
+func TestNewTokenEditorWithValidClaims_WhenNoTemporalClaims(t *testing.T) {
+	tok := libjwt.NewWithClaims(libjwt.SigningMethodHS256, libjwt.MapClaims{
+		"sub": "1234567890",
+	})
+	tokenString, _ := tok.SignedString([]byte("secret"))
+
+	e, _ := editor.NewTokenEditor(tokenString)
+	newEditor := editor.NewTokenEditorWithValidClaims(e)
+
+	claims := newEditor.GetToken().Claims.(libjwt.MapClaims)
+	expTime, _ := claims.GetExpirationTime()
+	assert.Nil(t, expTime)
+	nbfTime, _ := claims.GetNotBefore()
+	assert.Nil(t, nbfTime)
+}

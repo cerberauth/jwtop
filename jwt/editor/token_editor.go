@@ -81,6 +81,17 @@ func (j *TokenEditor) SignWithKey(key interface{}) (string, error) {
 	return j.SignWithMethodAndKey(j.token.Method, key)
 }
 
+// NewEmptyTokenEditor creates a TokenEditor with empty claims and HS256 signing
+// method. Useful as a fallback when no real token is available.
+func NewEmptyTokenEditor() (*TokenEditor, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{})
+	tokenString, err := token.SignedString([]byte(""))
+	if err != nil {
+		return nil, err
+	}
+	return NewTokenEditor(tokenString)
+}
+
 // Clone creates a deep copy of this TokenEditor by re-parsing the underlying raw
 // token. Panics if the raw token is invalid (which cannot happen in normal use).
 func (j *TokenEditor) Clone() *TokenEditor {
