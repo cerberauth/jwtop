@@ -1,6 +1,6 @@
 version: 2
 
-project_name: jwtop
+project_name: JWTop
 
 before:
   hooks:
@@ -109,7 +109,7 @@ nfpms:
     homepage: https://www.cerberauth.com/?utm_source=nfpms
     maintainer: Emmanuel Gautier <emmanuel@cerberauth.com>
     description: |-
-      jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+      JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
     license: "MIT"
     formats:
       - apk
@@ -119,10 +119,10 @@ nfpms:
       - archlinux
 
 snapcrafts:
-  - title: jwtop
+  - title: JWTop
     publish: true
-    summary: "jwtop"
-    description: "jwtop"
+    summary: "JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses."
+    description: "JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses."
     license: MIT
     apps:
       jwtop:

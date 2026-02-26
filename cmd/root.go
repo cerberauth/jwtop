@@ -20,7 +20,7 @@ var name = "jwtop"
 var rootCmd = &cobra.Command{
 	Use:   name,
 	Short: "JWT operations CLI",
-	Long:  `jwtop is a command-line tool for decoding, verifying, creating, and signing JWTs.`,
+	Long:  `JWTop is a command-line tool for decoding, verifying, creating, and signing JWTs.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		if !sqaOptOut {
 			otelShutdown, _ = telemetryx.New(cmd.Context(), name, version)
