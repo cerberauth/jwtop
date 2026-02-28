@@ -1,11 +1,11 @@
 ---
 title: JWTop
-description: JWT operations library and CLI for Go — decode, verify, create, and sign tokens.
+description: JWT operations library and CLI for Go — decode, verify, create, sign, crack, and exploit tokens.
 ---
 
 # JWTop
 
-**JWTop** is a JWT operations toolkit for Go. It ships as both a standalone CLI and an importable Go library, covering the full token lifecycle: decoding, verification, creation, and re-signing.
+**JWTop** is a JWT operations toolkit for Go. It ships as both a standalone CLI and an importable Go library, covering the full token lifecycle: decoding, verification, creation, re-signing, and security testing.
 
 ## What you can do
 
@@ -15,6 +15,9 @@ description: JWT operations library and CLI for Go — decode, verify, create, a
 | Verify a signature | `jwtop verify` | `jwt.Verify()` |
 | Create a signed token | `jwtop create` | `jwt.Create()` |
 | Re-sign with a different key or algorithm | `jwtop sign` | `editor.TokenEditor` |
+| Probe a server for JWT vulnerabilities | `jwtop crack` | `crack.ProbeAll()` |
+| Produce an exploited token for testing | `jwtop exploit` | `exploit.*` |
+| Brute-force an HMAC secret | `jwtop exploit weaksecret` | `exploit.CrackSecret()` |
 
 ## Quick start
 
@@ -30,6 +33,9 @@ jwtop verify $TOKEN --secret mysecret
 
 # Create a signed token
 jwtop create --alg HS256 --secret mysecret --sub user123 --exp 1h
+
+# Probe a server for JWT vulnerabilities
+jwtop crack $TOKEN --url https://api.example.com/protected
 ```
 
 ## Next steps

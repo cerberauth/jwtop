@@ -1,0 +1,94 @@
+---
+title: crack
+description: Probe a server for JWT vulnerabilities using all known exploit techniques.
+---
+
+# crack
+
+Send a probe to a target URL for each known JWT exploit technique and report which ones the server accepts. Each technique produces a modified token sent as `Authorization: Bearer <token>`. If the server responds with the expected status code, that technique is flagged **VULNERABLE**.
+
+> **Note:** Use only against systems you own or have explicit written permission to test.
+
+## Usage
+
+```sh
+jwtop crack <token> --url <url> [flags]
+```
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--url` | Target URL to probe **(required)** |
+| `--expected-status` | HTTP status code that indicates a successful exploit (default `200`) |
+| `--key` | Path to a PEM public key file for the `hmacconfusion` probe |
+| `--wordlist` | Path to a newline-delimited file of candidate secrets |
+| `--secret` | Explicit candidate secret for brute-force (repeatable) |
+| `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
+
+## Techniques
+
+Probes run in this order:
+
+| Technique | Description |
+|---|---|
+| `algnone` (×4) | `alg=none` with four common capitalisation variants |
+| `blanksecret` | Re-sign with an empty HMAC secret |
+| `nullsig` | Strip the signature segment entirely |
+| `hmacconfusion` | Re-sign using a public key as HMAC secret (skipped without `--key`) |
+| `kidinjection (sql)` | SQL injection via the `kid` header |
+| `kidinjection (path)` | Path traversal via the `kid` header |
+| `secret` | Dictionary brute-force of the HMAC signing secret (skipped for non-HMAC tokens) |
+
+## Output format
+
+Each line shows one technique:
+
+```
+[+] algnone (none)              200  VULNERABLE
+[ ] blanksecret                 401
+[-] hmacconfusion               skipped (no public key provided)
+[+] secret                      200  VULNERABLE  (secret: hunter2)
+```
+
+- `[+]` — server responded with the expected status (vulnerable)
+- `[ ]` — server rejected the exploit
+- `[-]` — technique was skipped (prerequisite missing)
+- `[!]` — a network or token error occurred
+
+## Examples
+
+**Probe with the built-in secret dictionary**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+**Include a public key for the hmacconfusion probe**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key /path/to/public.pem
+```
+
+**Use a custom wordlist and explicit guesses**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --wordlist /path/to/secrets.txt \
+  --secret mysecret --secret topsecret
+```
+
+**Expect a different success status (e.g. 403 means authenticated but unauthorised)**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --expected-status 403
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | At least one exploit succeeded |
+| `1` | No exploits succeeded |

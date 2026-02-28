@@ -1,0 +1,102 @@
+name: Scans
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  GO_VERSION: "1.26"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  run-exploit-cli:
+    name: Exploit CLI
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Create test token
+        id: create
+        run: echo "jwt=$(go run main.go create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
+
+      - name: Exploit algnone
+        run: go run main.go exploit algnone ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit algnone --all
+        run: go run main.go exploit algnone --all ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit blanksecret
+        run: go run main.go exploit blanksecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit nullsig
+        run: go run main.go exploit nullsig ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit weak / known secret
+        run: go run main.go exploit weaksecret --secret testsecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+  run-jwt-crack-scans:
+    name: JWT Crack - ${{ matrix.challenge }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        challenge:
+          - "jwt-alg-none-bypass"
+          - "jwt-blank-secret"
+          - "jwt-not-verified"
+          - "jwt-null-signature"
+          - "jwt-weak-hmac-secret"
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Server
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest
+
+      - name: Get JWT
+        id: get-jwt
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-strong-eddsa-key:latest jwt)" >> $GITHUB_OUTPUT
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v6
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: jwtop crack
+        id: crack
+        continue-on-error: true
+        run: |
+          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --sqa-opt-out
+
+      - name: Check for working exploit
+        if: ${{ steps.crack.outputs.conclusion == 'failure' }}
+        run: echo "No working exploit found for ${{ matrix.challenge }}"
+
+      - name: Stop Server
+        if: ${{ always() }}
+        run: docker stop $(docker ps -q --filter ancestor=ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest)

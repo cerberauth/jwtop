@@ -42,7 +42,6 @@ var versionCmd = &cobra.Command{
 	},
 }
 
-// Execute runs the root command with the given version string.
 func Execute(v string) {
 	version = v
 	rootCmd.AddCommand(versionCmd)
@@ -71,6 +70,8 @@ func init() {
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(createCmd)
 	rootCmd.AddCommand(signCmd)
+	rootCmd.AddCommand(crackCmd)
+	rootCmd.AddCommand(exploitCmd)
 
 	rootCmd.PersistentFlags().BoolVarP(&sqaOptOut, "sqa-opt-out", "", false, "Opt out of sending anonymous usage statistics and crash reports to help improve the tool")
 }
