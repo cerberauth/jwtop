@@ -5,7 +5,7 @@ description: Overview of all JWTop CLI commands.
 
 # CLI reference
 
-The `jwtop` CLI provides four commands covering the full JWT workflow.
+The `jwtop` CLI provides commands covering the full JWT workflow, including security testing.
 
 | Command | Description |
 |---|---|
@@ -13,6 +13,8 @@ The `jwtop` CLI provides four commands covering the full JWT workflow.
 | [`verify`](./verify) | Verify a token's signature and standard claims |
 | [`create`](./create) | Create and sign a new token from scratch |
 | [`sign`](./sign) | Re-sign an existing token with a different algorithm or key |
+| [`crack`](./crack) | Probe a server for JWT vulnerabilities using all known exploits |
+| [`exploit`](./exploit) | Produce a modified token with a specific security exploit applied |
 
 ## Global usage
 
@@ -23,3 +25,9 @@ jwtop version
 ```
 
 All commands exit `0` on success and `1` on error. Verification failure also exits `1`.
+
+## Global flags
+
+| Flag | Description |
+|---|---|
+| `--sqa-opt-out` | Opt out of anonymous usage statistics and crash reporting |

