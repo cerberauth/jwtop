@@ -1,17 +1,65 @@
 ---
 title: Installation
-description: Install JWTop as a CLI tool or as a Go library.
+description: Install JWTop as a CLI tool.
+sidebar:
+  order: 2
 ---
 
-# Installation
+import { Steps, Tabs, TabItem, Aside } from '@/components/docs';
 
 ## CLI
 
-Install the latest binary with `go install`:
+<Tabs>
+  <TabItem label="go install">
 
 ```sh
 go install github.com/cerberauth/jwtop@latest
 ```
+
+Requires Go 1.24 or later.
+
+  </TabItem>
+  <TabItem label="Homebrew">
+
+```sh
+brew install cerberauth/tap/jwtop
+```
+
+  </TabItem>
+  <TabItem label="Docker">
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop <command>
+```
+
+  </TabItem>
+  <TabItem label="From source">
+
+<Steps>
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/cerberauth/jwtop.git
+   cd jwtop
+   ```
+
+2. Build the binary:
+
+   ```sh
+   go build -o jwtop .
+   ```
+
+3. Move it to your `PATH`:
+
+   ```sh
+   mv jwtop /usr/local/bin/
+   ```
+
+</Steps>
+
+  </TabItem>
+</Tabs>
 
 Verify the installation:
 
@@ -19,61 +67,10 @@ Verify the installation:
 jwtop version
 ```
 
-### Other installation methods
+## GitHub Actions
 
-**Docker**
+To use `jwtop` in a GitHub Actions workflow, see the [GitHub Actions guide](./github-actions/).
 
-```sh
-docker run --rm ghcr.io/cerberauth/jwtop <command>
-```
-
-**From source**
-
-```sh
-git clone https://github.com/cerberauth/jwtop.git
-cd jwtop
-go build -o jwtop .
-```
-
-## Library
-
-The library is split into focused packages:
-
-| Package | Purpose |
-|---|---|
-| `github.com/cerberauth/jwtop/jwt` | Decode, verify, create tokens; key utilities |
-| `github.com/cerberauth/jwtop/jwt/editor` | Re-sign and mutate existing tokens |
-| `github.com/cerberauth/jwtop/jwt/exploit` | Standalone exploit primitives + HMAC secret cracking |
-| `github.com/cerberauth/jwtop/jwt/crack` | Probe a server for JWT vulnerabilities |
-
-Add the packages you need:
-
-```sh
-# Core operations
-go get github.com/cerberauth/jwtop/jwt
-
-# Token editor (re-sign, mutate)
-go get github.com/cerberauth/jwtop/jwt/editor
-
-# Security exploits and secret cracking
-go get github.com/cerberauth/jwtop/jwt/exploit
-
-# Server vulnerability probing
-go get github.com/cerberauth/jwtop/jwt/crack
-```
-
-Then import them:
-
-```go
-import (
-    "github.com/cerberauth/jwtop/jwt"
-    "github.com/cerberauth/jwtop/jwt/editor"
-    "github.com/cerberauth/jwtop/jwt/exploit"
-    "github.com/cerberauth/jwtop/jwt/crack"
-)
-```
-
-## Requirements
-
-- Go 1.24 or later (for the library)
-- Any platform supported by the Go toolchain (for the CLI)
+<Aside type="tip">
+  The [`cerberauth/jwtop-action`](https://github.com/cerberauth/jwtop-action) composite action installs and runs `jwtop` with no extra setup.
+</Aside>

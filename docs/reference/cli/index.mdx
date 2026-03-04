@@ -1,0 +1,35 @@
+---
+title: CLI reference
+description: Overview of all JWTop CLI commands.
+sidebar:
+  order: 1
+---
+
+import { LinkCard, CardGrid } from '@/components/docs';
+
+The `jwtop` CLI covers the full JWT workflow, including security testing.
+
+<CardGrid>
+  <LinkCard title="decode" description="Inspect a token's header and claims without verifying the signature." href="./decode/" />
+  <LinkCard title="verify" description="Validate a token's signature and standard claims." href="./verify/" />
+  <LinkCard title="create" description="Mint a new signed token from scratch." href="./create/" />
+  <LinkCard title="sign" description="Re-sign an existing token with a different algorithm or key." href="./sign/" />
+  <LinkCard title="crack" description="Probe a server for JWT vulnerabilities using all known exploits." href="./crack/" />
+  <LinkCard title="exploit" description="Produce a modified token with a specific security exploit applied." href="./exploit/" />
+</CardGrid>
+
+## Global usage
+
+```sh
+jwtop <command> [flags]
+jwtop --help
+jwtop version
+```
+
+All commands exit `0` on success and `1` on error. Verification failure also exits `1`.
+
+## Global flags
+
+| Flag | Description |
+|---|---|
+| `--sqa-opt-out` | Opt out of anonymous usage statistics and crash reporting |

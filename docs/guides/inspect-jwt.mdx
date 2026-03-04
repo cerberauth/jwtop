@@ -3,8 +3,6 @@ title: Inspect an unknown JWT
 description: Decode and read a JWT's header and claims without needing the signing key.
 ---
 
-# Inspect an unknown JWT
-
 When you receive a JWT from a third-party service, a log, or a debug session, you often want to read its content before you have the signing key or know the algorithm. `jwtop decode` does this without any key material.
 
 ## With the CLI
@@ -55,4 +53,4 @@ Signature:
 
 ## Next step
 
-Once you know the algorithm and have the key, use [`jwtop verify`](../cli/verify) to confirm the signature.
+Once you know the algorithm and have the key, use [`jwtop verify`](../reference/cli/verify) to confirm the signature.
