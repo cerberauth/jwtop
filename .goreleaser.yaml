@@ -96,12 +96,12 @@ chocolateys:
     docs_url: https://www.cerberauth.com/docs?utm_source=chocolatey
     bug_tracker_url: https://github.com/cerberauth/jwtop/issues
     tags: "security vulnerability developer"
-    summary: jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+    summary: JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
     skip_publish: false
     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
     source_repo: "https://push.chocolatey.org/"
     description: |
-      jwtop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
+      JWTop is an open-source project designed to help you scan your APIs for common security vulnerabilities and weaknesses.
 
 nfpms:
   - package_name: "{{ .ProjectName }}"

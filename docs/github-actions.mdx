@@ -1,0 +1,146 @@
+---
+title: GitHub Actions
+description: Use JWTop in CI/CD pipelines to scan for JWT vulnerabilities, verify tokens, and generate test tokens.
+sidebar:
+  order: 3
+---
+
+import { Card, CardGrid, Aside, Tabs, TabItem } from '@/components/docs';
+
+Run `jwtop` in your GitHub Actions workflows to catch JWT misconfigurations before they reach production.
+
+<CardGrid>
+  <Card title="cerberauth/jwtop-action" icon="github">
+    The official action — no setup required, just add it to your workflow.
+  </Card>
+  <Card title="Raw CLI" icon="forward-slash">
+    Install `jwtop` directly and run any command in a workflow step.
+  </Card>
+</CardGrid>
+
+## Using cerberauth/jwtop-action
+
+The [`cerberauth/jwtop-action`](https://github.com/cerberauth/jwtop-action) action installs `jwtop` and runs the command you specify.
+
+```yaml
+- uses: cerberauth/jwtop-action@v1
+  with:
+    args: crack ${{ env.TOKEN }} --url https://api.example.com/protected
+```
+
+### Inputs
+
+| Input | Description | Required |
+|---|---|---|
+| `args` | Arguments passed directly to `jwtop` | Yes |
+
+### Example: scan on pull request
+
+```yaml
+name: JWT security scan
+
+on:
+  pull_request:
+
+jobs:
+  jwt-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan for JWT vulnerabilities
+        uses: cerberauth/jwtop-action@v1
+        with:
+          args: crack ${{ secrets.TEST_TOKEN }} --url ${{ vars.API_URL }}/protected
+```
+
+<Aside type="caution">
+  Store tokens and target URLs in [encrypted secrets](https://docs.github.com/en/actions/security-guides/encrypted-secrets), never in plain workflow files.
+</Aside>
+
+---
+
+## Using the CLI directly
+
+If you need more control, install `jwtop` as a step and run commands directly.
+
+### Setup step
+
+```yaml
+- name: Install jwtop
+  run: go install github.com/cerberauth/jwtop@latest
+```
+
+Or use the Docker image to avoid needing Go:
+
+```yaml
+- name: Scan JWT vulnerabilities
+  run: |
+    docker run --rm ghcr.io/cerberauth/jwtop \
+      crack "$TOKEN" --url "$API_URL"
+  env:
+    TOKEN: ${{ secrets.TEST_TOKEN }}
+    API_URL: ${{ vars.API_URL }}
+```
+
+---
+
+## Common use cases
+
+### Fail the build when a vulnerability is found
+
+`jwtop crack` exits `0` if at least one exploit succeeds. Use a negation to fail the build:
+
+```yaml
+- name: Assert no JWT vulnerabilities
+  run: |
+    if jwtop crack "$TOKEN" --url "$API_URL"; then
+      echo "::error::JWT vulnerability detected"
+      exit 1
+    fi
+  env:
+    TOKEN: ${{ secrets.TEST_TOKEN }}
+    API_URL: ${{ vars.API_URL }}
+```
+
+### Generate a test token for integration tests
+
+```yaml
+- name: Generate test JWT
+  run: |
+    TOKEN=$(jwtop create --alg HS256 \
+      --secret "$TEST_SECRET" \
+      --sub ci-runner \
+      --exp 1h)
+    echo "TEST_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+  env:
+    TEST_SECRET: ${{ secrets.TEST_SECRET }}
+
+- name: Run integration tests
+  run: go test ./integration/...
+  env:
+    TEST_TOKEN: ${{ env.TEST_TOKEN }}
+```
+
+### Verify a token fetched from a staging environment
+
+```yaml
+- name: Verify staging token
+  run: jwtop verify "$TOKEN" --jwks "$JWKS_URI"
+  env:
+    TOKEN: ${{ steps.fetch-token.outputs.token }}
+    JWKS_URI: https://staging.example.com/.well-known/jwks.json
+```
+
+### Run all exploit probes with a public key
+
+```yaml
+- name: Full JWT security scan
+  uses: cerberauth/jwtop-action@v1
+  with:
+    args: >
+      crack ${{ secrets.TEST_TOKEN }}
+      --url ${{ vars.API_URL }}/protected
+      --key public.pem
+      --wordlist wordlists/secrets.txt
+```

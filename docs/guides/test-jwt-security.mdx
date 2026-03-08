@@ -3,11 +3,13 @@ title: Test JWT security
 description: Probe a server for common JWT vulnerabilities and generate exploit tokens for manual testing.
 ---
 
-# Test JWT security
+import { Aside, Tabs, TabItem, LinkCard } from '@/components/docs';
 
 JWTop provides two complementary tools for JWT security testing: `jwtop crack` probes a live server automatically, while `jwtop exploit` generates modified tokens for manual inspection or targeted tests.
 
-> Use these tools only against systems you own or have explicit written permission to test.
+<Aside type="caution">
+  Use these tools only against systems you own or have explicit written permission to test.
+</Aside>
 
 ## Automated server scan
 
@@ -107,7 +109,59 @@ curl -si -H "Authorization: Bearer $EXPLOITED" https://api.example.com/protected
   | head -1
 ```
 
+## In GitHub Actions
+
+Run a vulnerability scan automatically on every pull request:
+
+<Tabs>
+  <TabItem label="cerberauth/jwtop-action">
+
+```yaml
+name: JWT security scan
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cerberauth/jwtop-action@v1
+        with:
+          args: crack ${{ secrets.TEST_TOKEN }} --url ${{ vars.API_URL }}/protected
+```
+
+  </TabItem>
+  <TabItem label="CLI">
+
+```yaml
+name: JWT security scan
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jwtop
+        run: go install github.com/cerberauth/jwtop@latest
+
+      - name: Scan JWT vulnerabilities
+        run: |
+          if jwtop crack "$TOKEN" --url "$API_URL/protected"; then
+            echo "::error::JWT vulnerability detected"
+            exit 1
+          fi
+        env:
+          TOKEN: ${{ secrets.TEST_TOKEN }}
+          API_URL: ${{ vars.API_URL }}
+```
+
+  </TabItem>
+</Tabs>
+
+<LinkCard title="GitHub Actions guide" description="Full reference for using jwtop in CI/CD." href="../github-actions/" />
+
 ## See also
 
-- [`crack` reference](../cli/crack)
-- [`exploit` reference](../cli/exploit)
+- [`crack` reference](../reference/cli/crack/)
+- [`exploit` reference](../reference/cli/exploit/)

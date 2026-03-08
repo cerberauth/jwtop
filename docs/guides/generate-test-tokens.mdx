@@ -3,8 +3,6 @@ title: Generate tokens for testing
 description: Mint JWTs for development, CI pipelines, and integration tests.
 ---
 
-# Generate tokens for testing
-
 `jwtop create` lets you mint arbitrary JWTs from the command line — no server or auth infrastructure required. This is useful for seeding integration tests, populating CI environment variables, or reproducing production scenarios locally.
 
 ## Quick token for a test suite
@@ -57,10 +55,40 @@ jwtop create --alg RS256 --key test-private.pem --sub user-42 --exp 1h
 jwtop verify $TOKEN --key test-public.pem
 ```
 
-## In a CI pipeline (GitHub Actions example)
+## In GitHub Actions
+
+import { Tabs, TabItem } from '@/components/docs';
+
+<Tabs>
+  <TabItem label="cerberauth/jwtop-action">
 
 ```yaml
 - name: Generate test JWT
-  run: |
-    echo "TEST_TOKEN=$(jwtop create --alg HS256 --secret ${{ secrets.TEST_SECRET }} --sub ci-user --exp 1h)" >> $GITHUB_ENV
+  uses: cerberauth/jwtop-action@v1
+  id: jwt
+  with:
+    args: create --alg HS256 --secret ${{ secrets.TEST_SECRET }} --sub ci-user --exp 1h
+
+- name: Export token
+  run: echo "TEST_TOKEN=${{ steps.jwt.outputs.result }}" >> "$GITHUB_ENV"
 ```
+
+  </TabItem>
+  <TabItem label="CLI">
+
+```yaml
+- name: Install jwtop
+  run: go install github.com/cerberauth/jwtop@latest
+
+- name: Generate test JWT
+  run: |
+    TOKEN=$(jwtop create --alg HS256 \
+      --secret "$TEST_SECRET" \
+      --sub ci-user --exp 1h)
+    echo "TEST_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+  env:
+    TEST_SECRET: ${{ secrets.TEST_SECRET }}
+```
+
+  </TabItem>
+</Tabs>

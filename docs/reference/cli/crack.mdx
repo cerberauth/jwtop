@@ -3,11 +3,13 @@ title: crack
 description: Probe a server for JWT vulnerabilities using all known exploit techniques.
 ---
 
-# crack
+import { Aside } from '@/components/docs';
 
 Send a probe to a target URL for each known JWT exploit technique and report which ones the server accepts. Each technique produces a modified token sent as `Authorization: Bearer <token>`. If the server responds with the expected status code, that technique is flagged **VULNERABLE**.
 
-> **Note:** Use only against systems you own or have explicit written permission to test.
+<Aside type="caution">
+  Use only against systems you own or have explicit written permission to test.
+</Aside>
 
 ## Usage
 
