@@ -23,7 +23,7 @@ jwtop crack <token> --url <url> [flags]
 |---|---|
 | `--url` | Target URL to probe **(required)** |
 | `--expected-status` | HTTP status code that indicates a successful exploit (default `200`) |
-| `--key` | Path to a PEM public key file for the `hmacconfusion` probe |
+| `--key` | Path or URL to a PEM public key file for the `hmacconfusion` probe |
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret for brute-force (repeatable) |
 | `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
@@ -71,6 +71,9 @@ jwtop crack $TOKEN --url https://api.example.com/protected
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
   --key /path/to/public.pem
+
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key https://example.com/public.pem
 ```
 
 **Use a custom wordlist and explicit guesses**

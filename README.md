@@ -139,15 +139,16 @@ jwtop verify <token> [--secret <secret>] [--key <pem-file>] [--jwks <uri>]
 | Flag | Description |
 |------|-------------|
 | `--secret` | HMAC secret string |
-| `--key` | Path to PEM public (or private) key file |
+| `--key` | Path or URL to PEM public (or private) key file |
 | `--jwks` | JWKS endpoint URI |
 
 ```sh
 # HMAC
 jwtop verify $TOKEN --secret mysecret
 
-# RSA/ECDSA public key
+# RSA/ECDSA public key (file or URL)
 jwtop verify $TOKEN --key /path/to/public.pem
+jwtop verify $TOKEN --key https://example.com/public.pem
 
 # JWKS endpoint
 jwtop verify $TOKEN --jwks https://example.com/.well-known/jwks.json
@@ -167,7 +168,7 @@ jwtop create --alg <alg> (--secret <secret> | --key <pem-file>) [options]
 |------|-------------|
 | `--alg` | Signing algorithm, e.g. `HS256`, `RS256`, `ES256` **(required)** |
 | `--secret` | HMAC secret string |
-| `--key` | Path to PEM private key file |
+| `--key` | Path or URL to PEM private key file |
 | `--claim key=value` | Custom claim (repeatable) |
 | `--sub` | Subject claim |
 | `--iss` | Issuer claim |
@@ -201,7 +202,7 @@ jwtop sign <token> --alg <alg> (--secret <secret> | --key <pem-file>)
 |------|-------------|
 | `--alg` | Target signing algorithm, or `none` **(required)** |
 | `--secret` | HMAC secret string |
-| `--key` | Path to PEM private key file |
+| `--key` | Path or URL to PEM private key file |
 
 ```sh
 # Change algorithm and key
@@ -225,7 +226,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 |------|-------------|
 | `--url` | Target URL to probe **(required)** |
 | `--expected-status` | HTTP status that signals a successful exploit (default `200`) |
-| `--key` | Path to PEM public key for the `hmacconfusion` probe |
+| `--key` | Path or URL to PEM public key for the `hmacconfusion` probe |
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret (repeatable) |
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
@@ -236,8 +237,9 @@ Techniques probed: `algnone` (×4 capitalisation variants), `blanksecret`, `null
 # Probe with the built-in secret dictionary
 jwtop crack $TOKEN --url https://api.example.com/protected
 
-# Include a public key for the hmacconfusion probe
+# Include a public key for the hmacconfusion probe (file or URL)
 jwtop crack $TOKEN --url https://api.example.com/protected --key public.pem
+jwtop crack $TOKEN --url https://api.example.com/protected --key https://example.com/public.pem
 
 # Add a custom wordlist
 jwtop crack $TOKEN --url https://api.example.com/protected \
@@ -288,6 +290,7 @@ jwtop exploit nullsig $TOKEN
 
 ```sh
 jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
+jwtop exploit hmacconfusion $TOKEN --key https://example.com/public.pem
 ```
 
 **weaksecret** — dictionary-attack the HMAC signing secret.

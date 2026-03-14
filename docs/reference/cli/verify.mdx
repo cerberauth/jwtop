@@ -20,7 +20,7 @@ Exactly one key source must be provided.
 | Flag | Description |
 |---|---|
 | `--secret` | HMAC secret string (for HS256, HS384, HS512) |
-| `--key` | Path to a PEM-encoded public or private key file (RSA, EC, Ed25519) |
+| `--key` | Path or URL to a PEM-encoded public or private key file (RSA, EC, Ed25519) |
 | `--jwks` | URL of a JWKS endpoint |
 
 ## Examples
@@ -35,6 +35,7 @@ jwtop verify $TOKEN --secret mysecret
 
 ```sh
 jwtop verify $TOKEN --key /path/to/public.pem
+jwtop verify $TOKEN --key https://example.com/public.pem
 ```
 
 **JWKS endpoint**

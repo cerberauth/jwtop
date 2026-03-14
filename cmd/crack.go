@@ -61,10 +61,10 @@ Use only against systems you own or have explicit written permission to test.`,
 		var pemData []byte
 		if crackKey != "" {
 			var err error
-			pemData, err = os.ReadFile(crackKey) //nolint:gosec
+			pemData, err = readKeyData(crackKey)
 			if err != nil {
 				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "key read error")))
-				return fmt.Errorf("reading key file: %w", err)
+				return fmt.Errorf("reading key: %w", err)
 			}
 		}
 
@@ -132,7 +132,7 @@ func init() {
 	crackCmd.Flags().StringVar(&crackURL, "url", "", "Target URL to probe (required)")
 	_ = crackCmd.MarkFlagRequired("url")
 	crackCmd.Flags().IntVar(&crackExpectedStatus, "expected-status", 0, "HTTP status the server returns for an invalid JWT (0 = auto-detect)")
-	crackCmd.Flags().StringVar(&crackKey, "key", "", "Path to PEM public key for hmacconfusion (optional)")
+	crackCmd.Flags().StringVar(&crackKey, "key", "", "Path or URL to PEM public key for hmacconfusion (optional)")
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
 	crackCmd.Flags().StringArrayVar(&crackSecrets, "secret", nil, "Explicit candidate secret for brute-force (repeatable)")
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")

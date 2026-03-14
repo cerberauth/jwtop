@@ -13,10 +13,11 @@ jwtop verify $TOKEN --secret mysecret
 
 ## RSA or EC key file (RS256, ES256, …)
 
-Provide the path to a PEM-encoded public key file (or a private key — the public part is automatically extracted):
+Provide the path or URL to a PEM-encoded public key file (or a private key — the public part is automatically extracted):
 
 ```sh
 jwtop verify $TOKEN --key /path/to/public.pem
+jwtop verify $TOKEN --key https://example.com/public.pem
 ```
 
 Generate a test key pair:

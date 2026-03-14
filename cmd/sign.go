@@ -95,5 +95,5 @@ var signCmd = &cobra.Command{
 func init() {
 	signCmd.Flags().StringVar(&signAlg, "alg", "", "Signing algorithm (e.g. HS256, RS256, none)")
 	signCmd.Flags().StringVar(&signSecret, "secret", "", "HMAC secret")
-	signCmd.Flags().StringVar(&signKey, "key", "", "Path to PEM private key file")
+	signCmd.Flags().StringVar(&signKey, "key", "", "Path or URL to PEM private key file")
 }

@@ -41,6 +41,9 @@ A `[+]` line means the server accepted the exploit. Exit code `0` means at least
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
   --key /path/to/public.pem
+
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key https://example.com/public.pem
 ```
 
 **Add a custom secret wordlist:**
@@ -80,6 +83,7 @@ jwtop exploit nullsig $TOKEN
 
 ```sh
 jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
+jwtop exploit hmacconfusion $TOKEN --key https://example.com/public.pem
 ```
 
 **kid header injection:**
