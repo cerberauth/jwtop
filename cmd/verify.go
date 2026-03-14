@@ -41,7 +41,7 @@ var verifyCmd = &cobra.Command{
 		}
 
 		if verifyKeyFile != "" {
-			pemData, err := os.ReadFile(verifyKeyFile)
+			pemData, err := readKeyData(verifyKeyFile)
 			if err != nil {
 				verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to read key file")))
 				return fmt.Errorf("reading key file: %w", err)
@@ -89,6 +89,6 @@ var verifyCmd = &cobra.Command{
 
 func init() {
 	verifyCmd.Flags().StringVar(&verifySecret, "secret", "", "HMAC secret for verification")
-	verifyCmd.Flags().StringVar(&verifyKeyFile, "key", "", "Path to PEM public key file")
+	verifyCmd.Flags().StringVar(&verifyKeyFile, "key", "", "Path or URL to PEM public key file")
 	verifyCmd.Flags().StringVar(&verifyJWKSURI, "jwks", "", "JWKS endpoint URI")
 }

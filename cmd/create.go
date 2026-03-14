@@ -111,7 +111,7 @@ var createCmd = &cobra.Command{
 func init() {
 	createCmd.Flags().StringVar(&createAlg, "alg", "", "Signing algorithm (e.g. HS256, RS256)")
 	createCmd.Flags().StringVar(&createSecret, "secret", "", "HMAC secret")
-	createCmd.Flags().StringVar(&createKey, "key", "", "Path to PEM private key file")
+	createCmd.Flags().StringVar(&createKey, "key", "", "Path or URL to PEM private key file")
 	createCmd.Flags().StringArrayVar(&createClaims, "claim", nil, "Claim as key=value (repeatable)")
 	createCmd.Flags().StringVar(&createExp, "exp", "", "Expiration duration (e.g. 1h, 30m)")
 	createCmd.Flags().StringVar(&createSub, "sub", "", "Subject claim")
