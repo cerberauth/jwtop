@@ -130,15 +130,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Server
-        id: server
-        run: echo "container=$(docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest)" >> $GITHUB_OUTPUT
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest
 
       - name: Get JWT
         id: get-jwt
         run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest jwt)" >> $GITHUB_OUTPUT
-
-      - name: Extract Public Key
-        run: docker cp ${{ steps.server.outputs.container }}:/keys/public_key.pem public_key.pem
 
       - name: Setup Go environment
         uses: actions/setup-go@v6
@@ -149,7 +145,7 @@ jobs:
         id: crack
         continue-on-error: true
         run: |
-          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --key public_key.pem --sqa-opt-out
+          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --key http://localhost:8080/public-key --sqa-opt-out
 
       - name: Check for working exploit
         if: ${{ steps.crack.outputs.conclusion == 'failure' }}
@@ -157,4 +153,4 @@ jobs:
 
       - name: Stop Server
         if: ${{ always() }}
-        run: docker stop ${{ steps.server.outputs.container }}
+        run: docker stop $(docker ps -q --filter ancestor=ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest)
