@@ -2,8 +2,12 @@ package main
 
 import "github.com/cerberauth/jwtop/cmd"
 
-var version = "dev"
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
 
 func main() {
-	cmd.Execute(version)
+	cmd.Execute(version, commit, date)
 }
