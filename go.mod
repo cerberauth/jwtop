@@ -3,7 +3,7 @@ module github.com/cerberauth/jwtop
 go 1.26.0
 
 require (
-	github.com/cerberauth/x v0.0.0-20260317231926-a0036313e07f
+	github.com/cerberauth/x v0.0.0-20260328225930-85a91f5d7ee2
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/iancoleman/orderedmap v0.3.0
 	github.com/spf13/cobra v1.10.2
