@@ -173,8 +173,14 @@ snapcrafts:
     summary: *description
     description: "JWTop is a command-line tool for decoding, verifying, creating, and signing JWTs."
     license: *license
-    confinement: classic
+    confinement: strict
     grade: stable
+    apps:
+      jwtop:
+        plugs:
+          - home
+          - network
+          - removable-media
     channel_templates:
       - edge
       - beta

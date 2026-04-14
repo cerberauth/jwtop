@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 
 	"github.com/cerberauth/jwtop/jwt"
+	"github.com/cerberauth/x/fsx"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
@@ -29,7 +29,7 @@ func readKeyData(keyFileOrURL string) ([]byte, error) {
 		}
 		return io.ReadAll(resp.Body)
 	}
-	return os.ReadFile(keyFileOrURL)
+	return fsx.ReadFile(keyFileOrURL)
 }
 
 func resolveKey(secret, keyFile string, publicKey bool) (interface{}, []byte, error) {
