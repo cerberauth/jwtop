@@ -1,0 +1,81 @@
+---
+title: Token Cross Service Relay Attack
+description: A vulnerability arises when a token is forged by the same service but doesn't verify the issuer or audience.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/20.html">CWE-20: Improper Input Validation</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/287.html">CWE-287: Improper Authentication</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+A vulnerability arises when a JSON Web Token (JWT) is signed by the same service (e.g., a social identity provider) but the receiving application doesn't verify the `iss` (issuer) and/or the `aud` (audience) claims.
+
+Many identity providers use the same signing key pair for all their clients. If an application only verifies the signature but not the `aud` claim, an attacker can create their own project with the same provider, get a validly signed token for their own project, and "relay" it to the victim application. The victim application will see a valid signature from a trusted provider and wrongly accept the token.
+
+## Services Impacted
+
+### Social Identity Providers
+
+Most social identity providers (Google, Facebook, Microsoft, Apple) use shared key pairs. You **must** verify the `aud` claim to ensure the token was intended for your application.
+
+### IAM / Authorization Services
+
+Services like Firebase or Google Identity Platform also use shared keys. Both `iss` and `aud` must be verified.
+
+## Example
+
+An attacker creates a project on the same provider as the victim and obtains a token:
+
+```json
+{
+  "iss": "https://accounts.google.com",
+  "aud": "attacker-project-id.apps.googleusercontent.com",
+  "sub": "user-to-impersonate",
+  "email": "victim@example.com"
+}
+```
+
+If the victim application (with `client_id` = `victim-project-id`) only checks that the token is signed by Google, it will accept this token, allowing the attacker to impersonate the victim.
+
+## How to test?
+
+You can use `jwtop decode` to inspect the `iss` and `aud` claims of tokens you receive:
+
+```bash
+jwtop decode [token]
+```
+
+To test for this vulnerability:
+1. Create a second project with the same identity provider.
+2. Obtain a valid token for that second project.
+3. Send it to your original project's API.
+4. If the API accepts the request, it is vulnerable to cross-service relay attacks.
+
+## What is the impact?
+
+An attacker can impersonate any user who has an account with the shared identity provider. This leads to full account takeover and unauthorized access.
+
+## How to remediate?
+
+- **Verify the `iss` claim**: Ensure it matches the expected issuer URL.
+- **Verify the `aud` claim**: Ensure it matches your application's Client ID or identifier.
+- **Use standard libraries**: Most JWT libraries provide built-in support for verifying these claims. Ensure they are enabled and configured correctly.

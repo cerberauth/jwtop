@@ -1,0 +1,95 @@
+---
+title: JWT HMAC Confusion
+description: HMAC confusion (also known as Algorithm Confusion) is a critical JWT vulnerability where an attacker tricks a server into verifying an asymmetric token (like RS256) using a symmetric algorithm (like HS256).
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>CVEs</th>
+    <td>
+      <ul>
+        <li><a href="https://www.cve.org/CVERecord?id=CVE-2016-10555">CVE-2016-10555</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/327.html">CWE-327: Use of a Broken or Risky Cryptographic Algorithm</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+HMAC confusion (also known as Algorithm Confusion) exploits servers that trust the `alg` (algorithm) field in the JWT header without enforcing a specific expected algorithm.
+
+The attack works as follows:
+1. The server is configured to use an asymmetric algorithm (e.g., **RS256**) and possesses a **Public Key** for verification.
+2. An attacker changes the `alg` header from `RS256` to `HS256` (a symmetric HMAC algorithm).
+3. The attacker signs the forged token using the server's **Public Key** as the HMAC secret.
+4. If the server's verification logic is vulnerable, it sees `HS256`, looks for a "secret," and mistakenly uses the RSA Public Key it has on hand. Since the attacker used that same public key to sign the token, the signature validates.
+
+## Example
+
+Algorithm mapping (same bit-strength):
+- RS256 / ES256 / PS256 → HS256
+- RS384 / ES384 / PS384 → HS384
+- RS512 / ES512 / PS512 → HS512
+
+### The Confusion
+
+The attacker takes an RS256 token:
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+```
+
+Changes it to HS256:
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+And signs it using the RSA Public Key as the HMAC secret.
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT HMAC Confusion" vulnerability, you can use the `crack` command:
+
+```bash
+jwtop crack [token] --url [url] --key [public_key_path]
+```
+
+To generate a confused token, use the `exploit hmacconfusion` command:
+
+```bash
+jwtop exploit hmacconfusion [token] --key [public_key_path]
+```
+
+## What is the impact?
+
+A successful HMAC confusion attack allows an attacker to forge arbitrary JWTs, leading to full authentication bypass and unauthorized access to any user account or system functionality.
+
+## How to remediate?
+
+- **Algorithm Pinning**: Explicitly configure your JWT library to accept *only* the intended algorithm (e.g., `RS256` only).
+- **Key-Type Validation**: Ensure the key being used matches the algorithm (e.g., do not allow a public key to be used for an HMAC operation).
+- **Separate Verification Paths**: Do not use a single generic "verify" function that determines the algorithm based on the token's header.
