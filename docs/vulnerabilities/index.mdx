@@ -1,0 +1,33 @@
+---
+title: JWT Vulnerabilities
+description: Learn about common JWT vulnerabilities and how JWTop can help you identify and exploit them.
+---
+
+import { Card, CardGrid, LinkCard } from '@/components/docs';
+
+JSON Web Tokens (JWTs) are a popular standard for representing claims between two parties. However, improper implementation of JWT verification can lead to several critical security vulnerabilities.
+
+JWTop provides built-in tools to test for these vulnerabilities automatically or manually.
+
+## Common Vulnerabilities
+
+<CardGrid>
+  <LinkCard title="None Algorithm" description="Accepting tokens with no signature." href="./jwt-alg-none/" />
+  <LinkCard title="Blank Secret" description="Tokens signed with an empty HMAC secret." href="./jwt-blank-secret/" />
+  <LinkCard title="HMAC Confusion" description="Using a public key as an HMAC secret." href="./jwt-hmac-confusion/" />
+  <LinkCard title="KID Injection" description="Injecting payloads via the Key ID header." href="./jwt-kid-injection/" />
+  <LinkCard title="Null Signature" description="Stripping the signature from the token." href="./jwt-null-signature/" />
+  <LinkCard title="Weak Secret" description="Brute-forcing common HMAC secrets." href="./jwt-weak-secret/" />
+  <LinkCard title="Signature Not Verified" description="Bypassing signature verification entirely." href="./jwt-signature-not-verified/" />
+  <LinkCard title="Cross Service Relay Attack" description="Relaying tokens from other projects." href="./jwt-token-cross-service-relay-attack/" />
+</CardGrid>
+
+## How to Test
+
+The fastest way to test a live server for all these vulnerabilities at once is to use the `crack` command:
+
+```bash
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+For more details on each vulnerability, click on the cards above.

@@ -1,0 +1,72 @@
+---
+title: JWT Signature Not Verified
+description: A vulnerability where the server accepts JWTs without verifying their cryptographic signature, allowing attackers to forge arbitrary tokens.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+The "JWT Signature Not Verified" vulnerability occurs when a server accepts a JWT whose signature was created with a completely different (random) key, or even a corrupted signature. If the server returns a successful response (e.g. 200 OK) for a token with an invalid signature, it is not verifying the signature at all — meaning an attacker can craft any payload they want and the server will accept it.
+
+## Example
+
+JWTop takes your valid token, extracts its algorithm and claims, then re-signs it using an invalid or random signature.
+
+**Original valid token** (signed with the real private key):
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwicm9sZSI6InVzZXIifQ.<valid_signature>
+```
+
+**Attack token** (same claims, invalid signature):
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwicm9sZSI6InVzZXIifQ.invalidsignature
+```
+
+If both requests return a successful status code, the server is not verifying the signature.
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT Signature Not Verified" vulnerability, you can use the `crack` command:
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+JWTop automatically detects if the server accepts an invalid signature by sending a probe with a corrupted signature to establish a baseline.
+
+## What is the impact?
+
+If an attacker can forge arbitrary JWTs without needing the signing key, they can:
+
+- **Escalate privileges**: modify the `role` or `permissions` claim to gain admin access
+- **Impersonate any user**: change the `sub` or `user_id` claim to any value
+- **Bypass all JWT-based access controls**: the entire authentication system is effectively disabled
+- **Access any resource**: the attacker can claim to be any user, including users they do not have credentials for
+
+## How to remediate?
+
+1. **Always verify signatures**: use a trusted, well-maintained JWT library and call the verification function — never decode-only.
+
+2. **Provide the correct key**: pass the expected public key (for RS/ES) or secret (for HS) explicitly; never allow the library to auto-detect the key from the token header.
+
+3. **Pin allowed algorithms**: configure your library to only accept a specific set of algorithms (e.g. `["RS256"]`). This prevents algorithm-confusion attacks alongside signature bypass.
+
+4. **Use asymmetric algorithms for distributed systems**: RS256 and ES256 allow any service to verify tokens using the public key, while only the issuer holds the private key.
