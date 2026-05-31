@@ -105,7 +105,7 @@ func TestProbeAll_NoVerification_NotVulnerable_When401(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "no_verification")
+	r, ok := findResult(results, "No Verification")
 	require.True(t, ok)
 	assert.False(t, r.Vulnerable)
 	assert.Equal(t, 401, r.Status)
@@ -119,7 +119,7 @@ func TestProbeAll_NoVerification_Vulnerable_When200(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "no_verification")
+	r, ok := findResult(results, "No Verification")
 	require.True(t, ok)
 	assert.True(t, r.Vulnerable, "server accepts invalid JWTs → vulnerable")
 }
@@ -146,11 +146,11 @@ func TestProbeAll_WithExpectedStatus_SkipsAutoDetect(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 401, baseline, "baseline should be the provided ExpectedStatus")
 
-	r, ok := findResult(results, "no_verification")
+	r, ok := findResult(results, "No Verification")
 	require.True(t, ok)
 	assert.False(t, r.Vulnerable, "no_verification checks baselineStatus < 400, not server response")
 
-	algNone := findResultPrefix(results, "algnone")
+	algNone := findResultPrefix(results, "Algorithm None (")
 	for _, ar := range algNone {
 		assert.True(t, ar.Vulnerable, "algnone probe should be vulnerable when server returns 200 vs baseline 401")
 	}
@@ -164,7 +164,7 @@ func TestProbeAll_AlgNone_ProducesOneResultPerVariant(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	algNone := findResultPrefix(results, "algnone")
+	algNone := findResultPrefix(results, "Algorithm None (")
 	assert.Len(t, algNone, len(exploit.AlgNoneVariants))
 }
 
@@ -176,7 +176,7 @@ func TestProbeAll_AlgNone_NotVulnerable_When401(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	for _, r := range findResultPrefix(results, "algnone") {
+	for _, r := range findResultPrefix(results, "Algorithm None (") {
 		assert.False(t, r.Vulnerable, "algnone %s should not be vulnerable when server returns 401", r.Name)
 		assert.Nil(t, r.Err)
 	}
@@ -190,7 +190,7 @@ func TestProbeAll_BlankSecret_ProbedForHMAC(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "blanksecret")
+	r, ok := findResult(results, "Blank Secret")
 	require.True(t, ok)
 	assert.False(t, r.Skipped, "blanksecret should be probed for HMAC tokens")
 	assert.Nil(t, r.Err)
@@ -204,7 +204,7 @@ func TestProbeAll_BlankSecret_SkippedForAsymmetric(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "blanksecret")
+	r, ok := findResult(results, "Blank Secret")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "HMAC-only")
@@ -222,7 +222,7 @@ func TestProbeAll_NullSig_ProbedForAnyAlgorithm(t *testing.T) {
 		results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 		require.NoError(t, err)
 
-		r, ok := findResult(results, "nullsig")
+		r, ok := findResult(results, "Null Signature")
 		require.True(t, ok)
 		assert.False(t, r.Skipped, "nullsig should be probed for every algorithm")
 		assert.Nil(t, r.Err)
@@ -237,7 +237,7 @@ func TestProbeAll_HMACConfusion_SkippedForHMAC(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "hmacconfusion")
+	r, ok := findResult(results, "HMAC Confusion")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "not applicable")
@@ -253,7 +253,7 @@ func TestProbeAll_HMACConfusion_SkippedWhenNoPublicKey(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "hmacconfusion")
+	r, ok := findResult(results, "HMAC Confusion")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "no public key")
@@ -270,7 +270,7 @@ func TestProbeAll_HMACConfusion_ProbedWhenPublicKeyProvided(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "hmacconfusion")
+	r, ok := findResult(results, "HMAC Confusion")
 	require.True(t, ok)
 	assert.False(t, r.Skipped)
 	assert.Nil(t, r.Err)
@@ -284,7 +284,7 @@ func TestProbeAll_HMACConfusion_SkippedForES256(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "hmacconfusion")
+	r, ok := findResult(results, "HMAC Confusion")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "no public key")
@@ -298,7 +298,7 @@ func TestProbeAll_KidInjection_SQL_Probed(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "kidinjection (sql)")
+	r, ok := findResult(results, "KID SQL Injection")
 	require.True(t, ok)
 	assert.False(t, r.Skipped)
 	assert.Nil(t, r.Err)
@@ -312,7 +312,7 @@ func TestProbeAll_KidInjection_Path_Probed(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "kidinjection (path)")
+	r, ok := findResult(results, "KID Path Traversal")
 	require.True(t, ok)
 	assert.False(t, r.Skipped)
 	assert.Nil(t, r.Err)
@@ -329,7 +329,7 @@ func TestProbeAll_Secret_SkippedForAsymmetric(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "secret")
+	r, ok := findResult(results, "Weak Secret")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "HMAC-only")
@@ -345,7 +345,7 @@ func TestProbeAll_Secret_SkippedWhenNoCandidates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "secret")
+	r, ok := findResult(results, "Weak Secret")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "not found")
@@ -362,7 +362,7 @@ func TestProbeAll_Secret_SkippedWhenNotInCandidates(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "secret")
+	r, ok := findResult(results, "Weak Secret")
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "not found")
@@ -380,7 +380,7 @@ func TestProbeAll_Secret_ProbedWhenSecretFound(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "secret")
+	r, ok := findResult(results, "Weak Secret")
 	require.True(t, ok)
 	assert.False(t, r.Skipped, "secret probe should not be skipped when secret is found")
 	assert.Nil(t, r.Err)
@@ -400,15 +400,15 @@ func TestProbeAll_HMAC_ResultNames(t *testing.T) {
 		names[i] = r.Name
 	}
 
-	require.Contains(t, names, "no_verification")
-	require.Contains(t, names, "blanksecret")
-	require.Contains(t, names, "nullsig")
-	require.Contains(t, names, "hmacconfusion")
-	require.Contains(t, names, "kidinjection (sql)")
-	require.Contains(t, names, "kidinjection (path)")
-	require.Contains(t, names, "secret")
+	require.Contains(t, names, "No Verification")
+	require.Contains(t, names, "Blank Secret")
+	require.Contains(t, names, "Null Signature")
+	require.Contains(t, names, "HMAC Confusion")
+	require.Contains(t, names, "KID SQL Injection")
+	require.Contains(t, names, "KID Path Traversal")
+	require.Contains(t, names, "Weak Secret")
 
-	algNone := findResultPrefix(results, "algnone")
+	algNone := findResultPrefix(results, "Algorithm None (")
 	assert.Len(t, algNone, len(exploit.AlgNoneVariants))
 }
 
@@ -425,13 +425,13 @@ func TestProbeAll_Asymmetric_ResultNames(t *testing.T) {
 		names[i] = r.Name
 	}
 
-	require.Contains(t, names, "no_verification")
-	require.Contains(t, names, "blanksecret")
-	require.Contains(t, names, "nullsig")
-	require.Contains(t, names, "hmacconfusion")
-	require.Contains(t, names, "kidinjection (sql)")
-	require.Contains(t, names, "kidinjection (path)")
-	require.Contains(t, names, "secret")
+	require.Contains(t, names, "No Verification")
+	require.Contains(t, names, "Blank Secret")
+	require.Contains(t, names, "Null Signature")
+	require.Contains(t, names, "HMAC Confusion")
+	require.Contains(t, names, "KID SQL Injection")
+	require.Contains(t, names, "KID Path Traversal")
+	require.Contains(t, names, "Weak Secret")
 }
 
 func TestProbeAll_CancelledContext_ReturnsError(t *testing.T) {

@@ -1,0 +1,8 @@
+id: "algnone"
+name: "Algorithm None"
+description: "Tests if the server accepts tokens with the algorithm set to 'none'."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-alg-none"
+tags:
+  - algorithm
+depends_on:
+  - baseline

@@ -4,10 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cerberauth/harnessx/reporters"
 	"github.com/cerberauth/jwtop/jwt/crack"
 	"github.com/cerberauth/jwtop/jwt/exploit"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
@@ -79,12 +81,20 @@ Use only against systems you own or have explicit written permission to test.`,
 		}
 		candidates = append(candidates, crackSecrets...)
 
+		reporter, _ := reporters.NewOTelReporter(
+			ctx,
+			otel.Tracer(crackOtelName),
+			telemetryx.GetMeterProvider().Meter(crackOtelName),
+			reporters.WithPrefix("jwt.crack"),
+		)
+
 		results, baselineStatus, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
 			URL:            crackURL,
 			ExpectedStatus: crackExpectedStatus,
 			PublicKeyPEM:   pemData,
 			Candidates:     candidates,
 			Workers:        crackWorkers,
+			Reporter:       reporter,
 		})
 		if err != nil {
 			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "probe error")))
