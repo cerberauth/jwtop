@@ -1,0 +1,7 @@
+id: "nullsig"
+name: "Null Signature"
+description: "Tests if the server accepts tokens with an empty signature segment."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-null-signature"
+tags: []
+depends_on:
+  - baseline

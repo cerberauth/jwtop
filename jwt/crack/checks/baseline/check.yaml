@@ -1,0 +1,6 @@
+id: "baseline"
+name: "Baseline"
+description: "Sends the original token to establish a baseline HTTP status code."
+link: ""
+tags: []
+depends_on: []

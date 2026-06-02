@@ -1,0 +1,8 @@
+id: "blanksecret"
+name: "Blank Secret"
+description: "Tests if the server accepts tokens signed with a blank/empty HMAC secret."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-blank-secret"
+tags:
+  - hmac
+depends_on:
+  - baseline

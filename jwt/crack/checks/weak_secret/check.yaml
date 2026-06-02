@@ -1,0 +1,9 @@
+id: "secret"
+name: "Weak Secret"
+description: "Tests if the server accepts tokens signed with a commonly used weak secret."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-weak-secret"
+tags:
+  - hmac
+  - brute-force
+depends_on:
+  - baseline
