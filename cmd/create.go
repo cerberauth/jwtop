@@ -82,7 +82,7 @@ var createCmd = &cobra.Command{
 		var tokenString string
 		var err error
 
-		if createSecret != "" {
+		if cmd.Flags().Changed("secret") {
 			tokenString, err = jwt.CreateWithSecret(opts, []byte(createSecret))
 		} else if createKey != "" {
 			key, _, keyErr := resolveKey("", createKey, false)
