@@ -221,10 +221,16 @@ chocolateys:
     authors: CerberAuth
     description: *description
     project_url: *homepage
+    icon_url: https://github.com/cerberauth.png?size=128
     license_url: https://github.com/cerberauth/jwtop/blob/main/LICENSE
     copyright: CerberAuth
     tags: "jwt security developer"
     summary: *description
+    release_notes: "https://github.com/cerberauth/jwtop/releases/tag/v{{ .Version }}"
+    package_source_url: &source https://github.com/cerberauth/jwtop/tree/main
+    project_source_url: *source
+    docs_url: *homepage
+    bug_tracker_url: https://github.com/cerberauth/jwtop/issues
     api_key: "{{ .Env.CHOCOLATEY_API_KEY }}"
     source_repo: https://push.chocolatey.org/
     skip_publish: false
