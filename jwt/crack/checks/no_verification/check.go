@@ -24,6 +24,12 @@ var Check = func() harnessx.Check {
 		Link:        def.Link,
 		Tags:        def.Tags,
 		DependsOn:   def.DependsOnIDs(),
+		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
+			if target.Data.(*checkbase.ProbeCtx).Offline {
+				return "requires live server"
+			}
+			return ""
+		}),
 		Run: func(_ context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			baseline, _ := harnessx.GetData[int](store, checkbase.CheckIDBaseline)

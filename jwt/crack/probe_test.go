@@ -49,6 +49,28 @@ func makeES256Token(t *testing.T) string {
 	return s
 }
 
+func makeBlankSecretToken(t *testing.T) string {
+	t.Helper()
+	tok := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, jwtlib.MapClaims{"sub": "user1"})
+	s, err := tok.SignedString([]byte(""))
+	require.NoError(t, err)
+	return s
+}
+
+func makeAlgNoneToken(t *testing.T) string {
+	t.Helper()
+	tok := jwtlib.NewWithClaims(jwtlib.SigningMethodNone, jwtlib.MapClaims{"sub": "user1"})
+	s, err := tok.SignedString(jwtlib.UnsafeAllowNoneSignatureType)
+	require.NoError(t, err)
+	return s
+}
+
+func makeNullSigToken(t *testing.T) string {
+	t.Helper()
+	parts := strings.SplitN(makeHS256Token(t, "secret"), ".", 3)
+	return parts[0] + "." + parts[1] + "."
+}
+
 func rsaPublicKeyPEM(t *testing.T, key *rsa.PrivateKey) []byte {
 	t.Helper()
 	der, err := x509.MarshalPKIXPublicKey(&key.PublicKey)
@@ -444,4 +466,179 @@ func TestProbeAll_CancelledContext_ReturnsError(t *testing.T) {
 	token := makeHS256Token(t, "secret")
 	_, _, err := crack.ProbeAll(ctx, token, crack.ProbeOptions{URL: srv.URL})
 	assert.Error(t, err, "cancelled context should propagate as an error")
+}
+
+// Offline mode tests (no URL provided).
+
+func TestProbeAll_Offline_MalformedToken_ReturnsError(t *testing.T) {
+	_, _, err := crack.ProbeAll(context.Background(), "not-a-jwt", crack.ProbeOptions{})
+	assert.Error(t, err)
+}
+
+func TestProbeAll_Offline_BaselineStatus_IsZero(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	_, baseline, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+	assert.Equal(t, 0, baseline)
+}
+
+func TestProbeAll_Offline_NoVerification_Skipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "No Verification")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_Offline_AlgNone_DetectsExistingAlgNone(t *testing.T) {
+	token := makeAlgNoneToken(t)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Algorithm None (none)")
+	require.True(t, ok)
+	assert.True(t, r.Vulnerable, "variant 'none' should detect existing alg=none offline")
+}
+
+func TestProbeAll_Offline_AlgNone_NotVulnerable_ForNormalToken(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Algorithm None (none)")
+	require.True(t, ok)
+	assert.False(t, r.Vulnerable, "variant 'none' should not be vulnerable for HS256 token offline")
+}
+
+func TestProbeAll_Offline_AlgNone_NonCasedVariants_Skipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	// variant idx=0 ("none") runs offline; all other capitalizations require live server
+	for _, r := range findResultPrefix(results, "Algorithm None (") {
+		if r.Name == "Algorithm None (none)" {
+			assert.False(t, r.Skipped, "variant 'none' should run offline")
+		} else {
+			assert.True(t, r.Skipped, "variant %s should be skipped offline", r.Name)
+		}
+	}
+}
+
+func TestProbeAll_Offline_BlankSecret_VulnerableWhenSignedWithEmptyKey(t *testing.T) {
+	token := makeBlankSecretToken(t)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Blank Secret")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.True(t, r.Vulnerable)
+}
+
+func TestProbeAll_Offline_BlankSecret_NotVulnerableForNormalToken(t *testing.T) {
+	token := makeHS256Token(t, "notempty")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Blank Secret")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.False(t, r.Vulnerable)
+}
+
+func TestProbeAll_Offline_NullSignature_VulnerableWhenEmptySignature(t *testing.T) {
+	token := makeNullSigToken(t)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Null Signature")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.True(t, r.Vulnerable)
+}
+
+func TestProbeAll_Offline_NullSignature_NotVulnerableForNormalToken(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Null Signature")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.False(t, r.Vulnerable)
+}
+
+func TestProbeAll_Offline_HMACConfusion_Skipped(t *testing.T) {
+	token, _ := makeRS256Token(t)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "HMAC Confusion")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_Offline_KidSQL_Skipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID SQL Injection")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_Offline_KidPath_Skipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID Path Traversal")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_Offline_WeakSecret_VulnerableWhenSecretInCandidates(t *testing.T) {
+	const secret = "hunter2"
+	token := makeHS256Token(t, secret)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		Candidates: []string{"wrong", secret},
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Weak Secret")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.True(t, r.Vulnerable)
+	assert.Contains(t, r.Extra, secret)
+}
+
+func TestProbeAll_Offline_WeakSecret_SkippedWhenNoCandidates(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Weak Secret")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+}
+
+func TestProbeAll_Offline_WeakSecret_SkippedForAsymmetric(t *testing.T) {
+	token, _ := makeRS256Token(t)
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		Candidates: []string{"secret"},
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "Weak Secret")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "HMAC-only")
 }

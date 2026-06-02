@@ -61,6 +61,10 @@ var Check = func() harnessx.Check {
 			pctx.AlgNoneTokens = algNoneTokens
 			pctx.AlgNoneErr = algNoneErr
 
+			if pctx.Offline {
+				return harnessx.DataResult(0), nil
+			}
+
 			status := pctx.ExpectedStatus
 			if status == 0 {
 				req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)

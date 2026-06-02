@@ -31,6 +31,7 @@ type ProbeCtx struct {
 	Candidates     []string
 	Workers        int
 	ExpectedStatus int
+	Offline        bool
 }
 
 type CheckDef struct {

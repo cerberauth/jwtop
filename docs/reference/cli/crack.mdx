@@ -1,11 +1,11 @@
 ---
 title: crack
-description: Probe a server for JWT vulnerabilities using all known exploit techniques.
+description: Analyse a JWT for vulnerabilities — offline cryptographic checks or live server probing.
 ---
 
 import { Aside } from '@/components/docs';
 
-Send a probe to a target URL for each known JWT exploit technique and report which ones the server accepts. Each technique produces a modified token sent as `Authorization: Bearer <token>`. If the server responds with the expected status code, that technique is flagged **VULNERABLE**.
+Analyse a JWT token for known vulnerabilities. Without `--url` the tool runs in **offline mode** and performs pure cryptographic checks with no network requests. With `--url` each exploit technique probes the live server and reports whether it is accepted.
 
 <Aside type="caution">
   Use only against systems you own or have explicit written permission to test.
@@ -14,6 +14,10 @@ Send a probe to a target URL for each known JWT exploit technique and report whi
 ## Usage
 
 ```sh
+# Offline — no URL required
+jwtop crack <token> [flags]
+
+# Online — probe a live server
 jwtop crack <token> --url <url> [flags]
 ```
 
@@ -21,16 +25,31 @@ jwtop crack <token> --url <url> [flags]
 
 | Flag | Description |
 |---|---|
-| `--url` | Target URL to probe **(required)** |
+| `--url` | Target URL to probe (omit for offline analysis) |
 | `--expected-status` | HTTP status code that indicates a successful exploit (default `200`) |
 | `--key` | Path or URL to a PEM public key file for the `hmacconfusion` probe |
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret for brute-force (repeatable) |
 | `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
 
-## Techniques
+## Offline mode
 
-Probes run in this order:
+When `--url` is omitted, checks are limited to what can be determined from the token itself — no network calls are made.
+
+| Check | What is detected |
+|---|---|
+| `algnone` | Token already uses `alg=none` (any capitalisation) |
+| `blanksecret` | Token signature verifies against an empty HMAC secret |
+| `nullsig` | Token has an empty signature segment |
+| `weaksecret` | HMAC signing secret found via dictionary brute-force |
+
+Checks that require a live server (`hmacconfusion`, `kidinjection`, `no_verification`, and `algnone` casing variants) are skipped with an explanatory message.
+
+## Online mode
+
+When `--url` is provided, a modified token is sent as `Authorization: Bearer <token>` for each technique. A technique is **VULNERABLE** when the server responds with a status code that differs from the baseline (the status returned for a deliberately invalid JWT).
+
+`--expected-status` sets the baseline manually. When omitted, a first request with an invalid token auto-detects it.
 
 | Technique | Description |
 |---|---|
@@ -40,33 +59,50 @@ Probes run in this order:
 | `hmacconfusion` | Re-sign using a public key as HMAC secret (skipped without `--key`) |
 | `kidinjection (sql)` | SQL injection via the `kid` header |
 | `kidinjection (path)` | Path traversal via the `kid` header |
-| `secret` | Dictionary brute-force of the HMAC signing secret (skipped for non-HMAC tokens) |
+| `weaksecret` | Dictionary brute-force of the HMAC signing secret |
 
 ## Output format
 
-Each line shows one technique:
-
 ```
+# Offline
+[+] Blank Secret                  CONFIRMED
+[ ] Algorithm None (none)         OK
+[-] HMAC Confusion                skipped (requires live server)
+
+# Online
 [+] algnone (none)              200  VULNERABLE
 [ ] blanksecret                 401
 [-] hmacconfusion               skipped (no public key provided)
-[+] secret                      200  VULNERABLE  (secret: hunter2)
+[+] weaksecret                  200  VULNERABLE  (secret: hunter2)
 ```
 
-- `[+]` — server responded with the expected status (vulnerable)
-- `[ ]` — server rejected the exploit
-- `[-]` — technique was skipped (prerequisite missing)
+- `[+]` — vulnerability confirmed (offline) or server accepted the exploit (online)
+- `[ ]` — not vulnerable
+- `[-]` — technique was skipped (prerequisite missing or offline)
 - `[!]` — a network or token error occurred
 
 ## Examples
 
-**Probe with the built-in secret dictionary**
+**Offline — detect cryptographic weaknesses**
+
+```sh
+jwtop crack $TOKEN
+```
+
+**Offline — crack the signing secret with a wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt --secret mysecret --secret topsecret
+```
+
+**Online — probe with the built-in secret dictionary**
 
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected
 ```
 
-**Include a public key for the hmacconfusion probe**
+**Online — include a public key for the hmacconfusion probe**
 
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
@@ -76,7 +112,7 @@ jwtop crack $TOKEN --url https://api.example.com/protected \
   --key https://example.com/public.pem
 ```
 
-**Use a custom wordlist and explicit guesses**
+**Online — use a custom wordlist and explicit guesses**
 
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
@@ -84,7 +120,7 @@ jwtop crack $TOKEN --url https://api.example.com/protected \
   --secret mysecret --secret topsecret
 ```
 
-**Expect a different success status (e.g. 403 means authenticated but unauthorised)**
+**Online — expect a different success status (e.g. 403 means authenticated but unauthorised)**
 
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
@@ -95,5 +131,5 @@ jwtop crack $TOKEN --url https://api.example.com/protected \
 
 | Code | Meaning |
 |---|---|
-| `0` | At least one exploit succeeded |
-| `1` | No exploits succeeded |
+| `0` | At least one vulnerability found |
+| `1` | No vulnerabilities found |

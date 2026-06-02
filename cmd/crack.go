@@ -27,11 +27,18 @@ var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
 
 var crackCmd = &cobra.Command{
 	Use:   "crack <token>",
-	Short: "Test a JWT against every known exploit and report vulnerabilities",
-	Long: `Send a probe to --url for each known JWT exploit technique and report
-which ones the server accepts.
+	Short: "Analyse a JWT for vulnerabilities, optionally probing a live server",
+	Long: `Analyse a JWT token for known vulnerabilities.
 
-Each technique produces a modified token sent as:
+Without --url (offline mode), the token is analysed cryptographically:
+  • alg=none        detect if the token already uses algorithm none
+  • blank secret    detect if the token is signed with an empty HMAC secret
+  • null signature  detect if the token has an empty signature segment
+  • weak secret     dictionary brute-force of the HMAC signing secret
+
+With --url (online mode), a probe is sent to the target URL for each exploit
+technique and the server response determines whether the token is vulnerable:
+
   Authorization: Bearer <exploited-token>
 
 A technique is VULNERABLE when the server responds with a status code that
@@ -41,13 +48,10 @@ differs from the baseline (the status returned for an invalid JWT).
 first request is sent with a deliberately invalid token to detect it
 automatically.
 
-Techniques (in order):
+Additional online-only techniques:
   algnone (×4)    alg=none with four common capitalisations
-  blanksecret     re-sign with an empty HMAC secret
-  nullsig         strip the signature segment entirely
   hmacconfusion   re-sign using a public key as HMAC secret (requires --key)
   kidinjection    SQL injection and path traversal via the kid header
-  weaksecret      dictionary brute-force of the HMAC signing secret
 
 Use only against systems you own or have explicit written permission to test.`,
 	Args: cobra.ExactArgs(1),
@@ -59,6 +63,7 @@ Use only against systems you own or have explicit written permission to test.`,
 
 		ctx := cmd.Context()
 		tokenString := args[0]
+		offline := crackURL == ""
 
 		var pemData []byte
 		if crackKey != "" {
@@ -101,7 +106,12 @@ Use only against systems you own or have explicit written permission to test.`,
 			return fmt.Errorf("probing token: %w", err)
 		}
 
-		fmt.Printf("Baseline (invalid JWT): %d\n\n", baselineStatus)
+		if offline {
+			fmt.Println("Offline mode — cryptographic analysis only")
+			fmt.Println()
+		} else {
+			fmt.Printf("Baseline (invalid JWT): %d\n\n", baselineStatus)
+		}
 
 		vulnerable := 0
 		for _, r := range results {
@@ -117,13 +127,21 @@ Use only against systems you own or have explicit written permission to test.`,
 				if r.Extra != "" {
 					extra = "  (" + r.Extra + ")"
 				}
-				fmt.Printf("[+] %-28s  %d  VULNERABLE%s\n", r.Name, r.Status, extra)
+				if offline {
+					fmt.Printf("[+] %-28s  CONFIRMED%s\n", r.Name, extra)
+				} else {
+					fmt.Printf("[+] %-28s  %d  VULNERABLE%s\n", r.Name, r.Status, extra)
+				}
 			default:
 				extra := ""
 				if r.Extra != "" {
 					extra = "  (" + r.Extra + ")"
 				}
-				fmt.Printf("[ ] %-28s  %d%s\n", r.Name, r.Status, extra)
+				if offline {
+					fmt.Printf("[ ] %-28s  OK%s\n", r.Name, extra)
+				} else {
+					fmt.Printf("[ ] %-28s  %d%s\n", r.Name, r.Status, extra)
+				}
 			}
 		}
 
@@ -131,7 +149,11 @@ Use only against systems you own or have explicit written permission to test.`,
 			successCounter.Add(ctx, 1)
 		} else {
 			notFoundCounter.Add(ctx, 1)
-			fmt.Fprintln(os.Stderr, "\nNo exploits succeeded.")
+			if offline {
+				fmt.Fprintln(os.Stderr, "\nNo vulnerabilities confirmed.")
+			} else {
+				fmt.Fprintln(os.Stderr, "\nNo exploits succeeded.")
+			}
 			os.Exit(1)
 		}
 		return nil
@@ -139,8 +161,7 @@ Use only against systems you own or have explicit written permission to test.`,
 }
 
 func init() {
-	crackCmd.Flags().StringVar(&crackURL, "url", "", "Target URL to probe (required)")
-	_ = crackCmd.MarkFlagRequired("url")
+	crackCmd.Flags().StringVar(&crackURL, "url", "", "Target URL to probe (omit for offline analysis)")
 	crackCmd.Flags().IntVar(&crackExpectedStatus, "expected-status", 0, "HTTP status the server returns for an invalid JWT (0 = auto-detect)")
 	crackCmd.Flags().StringVar(&crackKey, "key", "", "Path or URL to PEM public key for hmacconfusion (optional)")
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
