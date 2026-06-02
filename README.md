@@ -216,37 +216,51 @@ jwtop sign $TOKEN --alg none
 
 ### crack
 
-Probe a target URL with every known JWT exploit technique and report which ones the server accepts. Each technique produces a modified token sent as `Authorization: Bearer <token>`. A response matching `--expected-status` marks that technique **VULNERABLE**.
+Analyse a JWT for vulnerabilities. Without `--url` the analysis is **offline** (pure cryptographic checks, no network). With `--url` each exploit technique probes a live server.
 
 ```sh
+# Offline — no URL required
+jwtop crack <token> [--wordlist <file>] [--secret <s>...] [--workers <n>]
+
+# Online — probe a live server
 jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wordlist <file>] [--secret <s>...] [--workers <n>]
 ```
 
 | Flag | Description |
 |------|-------------|
-| `--url` | Target URL to probe **(required)** |
+| `--url` | Target URL to probe (omit for offline analysis) |
 | `--expected-status` | HTTP status that signals a successful exploit (default `200`) |
 | `--key` | Path or URL to PEM public key for the `hmacconfusion` probe |
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret (repeatable) |
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
 
-Techniques probed: `algnone` (×4 capitalisation variants), `blanksecret`, `nullsig`, `hmacconfusion` (requires `--key`), `kidinjection` (SQL and path traversal), `weaksecret` (dictionary, HMAC tokens only).
+**Offline checks** (cryptographic proof, no server needed):
+
+| Check | What it detects |
+|-------|----------------|
+| `algnone` | Token already uses `alg=none` |
+| `blanksecret` | Token is signed with an empty HMAC secret |
+| `nullsig` | Token has an empty signature segment |
+| `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
+
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `kidinjection` (SQL and path traversal).
 
 ```sh
-# Probe with the built-in secret dictionary
+# Offline — detect cryptographic weaknesses
+jwtop crack $TOKEN
+
+# Offline — crack the signing secret with a wordlist
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt --secret mysecret
+
+# Online — probe a server with all techniques
 jwtop crack $TOKEN --url https://api.example.com/protected
 
-# Include a public key for the hmacconfusion probe (file or URL)
+# Online — include hmacconfusion probe
 jwtop crack $TOKEN --url https://api.example.com/protected --key public.pem
-jwtop crack $TOKEN --url https://api.example.com/protected --key https://example.com/public.pem
-
-# Add a custom wordlist
-jwtop crack $TOKEN --url https://api.example.com/protected \
-  --wordlist /path/to/secrets.txt --secret mysecret
 ```
 
-Exits `0` when at least one exploit succeeded, `1` when none did.
+Exits `0` when at least one vulnerability was found, `1` when none were.
 
 ---
 

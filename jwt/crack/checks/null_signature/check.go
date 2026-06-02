@@ -3,6 +3,7 @@ package nullsignature
 import (
 	"context"
 	_ "embed"
+	"strings"
 
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
@@ -27,6 +28,12 @@ var Check = func() harnessx.Check {
 		DependsOn:   def.DependsOnIDs(),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
+			if pctx.Offline {
+				parts := strings.SplitN(pctx.TokenString, ".", 3)
+				return harnessx.DataResult(checkbase.ProbeResult{
+					Vulnerable: len(parts) == 3 && parts[2] == "",
+				}), nil
+			}
 			token, err := exploit.NullSignature(pctx.TokenString)
 			if err != nil {
 				r := harnessx.DataResult(checkbase.ProbeResult{Err: err})

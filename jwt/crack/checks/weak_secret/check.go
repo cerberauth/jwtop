@@ -42,6 +42,12 @@ var Check = func() harnessx.Check {
 			if !result.Found {
 				return checkbase.SkippedProbeResult("not found in dictionary"), nil
 			}
+			if pctx.Offline {
+				return harnessx.DataResult(checkbase.ProbeResult{
+					Vulnerable: true,
+					Extra:      "secret: " + result.Secret,
+				}), nil
+			}
 			baseline, _ := harnessx.GetData[int](store, checkbase.CheckIDBaseline)
 			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
 			if err != nil {

@@ -30,8 +30,9 @@ type ProbeOptions struct {
 }
 
 func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
+	offline := opts.URL == ""
 	p := opts.Probe
-	if p == nil {
+	if p == nil && !offline {
 		p = probe.New()
 	}
 	pctx := &checkbase.ProbeCtx{
@@ -41,6 +42,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		Candidates:     opts.Candidates,
 		Workers:        opts.Workers,
 		ExpectedStatus: opts.ExpectedStatus,
+		Offline:        offline,
 	}
 
 	checks := make([]harnessx.Check, 0, len(algnone.Checks)+8)

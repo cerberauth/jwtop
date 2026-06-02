@@ -27,6 +27,9 @@ var Check = func() harnessx.Check {
 		DependsOn:   def.DependsOnIDs(),
 		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
 			pctx := target.Data.(*checkbase.ProbeCtx)
+			if pctx.Offline {
+				return "requires live server"
+			}
 			if !pctx.IsAsymmetric {
 				return "asymmetric-to-HMAC exploit not applicable for " + pctx.Alg
 			}

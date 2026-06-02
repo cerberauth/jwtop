@@ -25,6 +25,12 @@ var Check = func() harnessx.Check {
 		Link:        def.Link,
 		Tags:        def.Tags,
 		DependsOn:   def.DependsOnIDs(),
+		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
+			if target.Data.(*checkbase.ProbeCtx).Offline {
+				return "requires live server (server-side key lookup)"
+			}
+			return ""
+		}),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			token, err := exploit.KidSQLInjection(pctx.TokenString, exploit.DefaultKidSQLPayload, []byte("secret"))

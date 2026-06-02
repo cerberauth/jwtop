@@ -34,6 +34,15 @@ var Check = func() harnessx.Check {
 		}),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
+			if pctx.Offline {
+				vulnerable, err := exploit.IsSignedWithBlankSecret(pctx.TokenString)
+				if err != nil {
+					r := harnessx.DataResult(checkbase.ProbeResult{Err: err})
+					r.Err = err
+					return r, nil
+				}
+				return harnessx.DataResult(checkbase.ProbeResult{Vulnerable: vulnerable}), nil
+			}
 			token, err := exploit.BlankSecret(pctx.TokenString)
 			if err != nil {
 				r := harnessx.DataResult(checkbase.ProbeResult{Err: err})
