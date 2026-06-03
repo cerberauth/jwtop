@@ -19,19 +19,20 @@ type ProbeResult struct {
 }
 
 type ProbeCtx struct {
-	TokenString    string
-	IsHMAC         bool
-	IsAsymmetric   bool
-	Alg            string
-	InvalidToken   string
-	AlgNoneTokens  []string
-	AlgNoneErr     error
-	Probe          *probe.Probe
-	PublicKeyPEM   []byte
-	Candidates     []string
-	Workers        int
-	ExpectedStatus int
-	Offline        bool
+	TokenString         string
+	IsHMAC              bool
+	IsAsymmetric        bool
+	Alg                 string
+	InvalidToken        string
+	AlgNoneTokens       []string
+	AlgNoneErr          error
+	Probe               *probe.Probe
+	PublicKeyPEM        []byte
+	Candidates          []string
+	Workers             int
+	ExpectedStatus      int
+	OriginalTokenStatus int
+	Offline             bool
 }
 
 type CheckDef struct {

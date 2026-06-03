@@ -3,6 +3,7 @@ package baseline
 import (
 	"context"
 	_ "embed"
+	"fmt"
 	"net/http"
 	"strings"
 
@@ -63,6 +64,27 @@ var Check = func() harnessx.Check {
 
 			if pctx.Offline {
 				return harnessx.DataResult(0), nil
+			}
+
+			origReq, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
+			if err != nil {
+				return harnessx.Result{}, err
+			}
+			origReq.Header.Set("Authorization", "Bearer "+pctx.TokenString)
+			origResp, err := pctx.Probe.Client().Do(origReq)
+			if err != nil {
+				return harnessx.Result{}, err
+			}
+			origResp.Body.Close()
+			pctx.OriginalTokenStatus = origResp.StatusCode
+
+			if origResp.StatusCode < 200 || origResp.StatusCode >= 300 {
+				if pctx.ExpectedStatus == 0 {
+					return harnessx.Result{}, fmt.Errorf(
+						"token already rejected by server (HTTP %d); use --expected-status to set the expected rejection status explicitly",
+						origResp.StatusCode,
+					)
+				}
 			}
 
 			status := pctx.ExpectedStatus

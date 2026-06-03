@@ -45,8 +45,9 @@ A technique is VULNERABLE when the server responds with a status code that
 differs from the baseline (the status returned for an invalid JWT).
 
 --expected-status sets the baseline manually (e.g. 401). When omitted, a
-first request is sent with a deliberately invalid token to detect it
-automatically.
+first request is sent with the original token; if the server already rejects
+it (non-2xx), --expected-status is required. Otherwise the baseline is
+auto-detected by sending a deliberately invalid token.
 
 Additional online-only techniques:
   algnone (×4)    alg=none with four common capitalisations
@@ -162,7 +163,7 @@ Use only against systems you own or have explicit written permission to test.`,
 
 func init() {
 	crackCmd.Flags().StringVar(&crackURL, "url", "", "Target URL to probe (omit for offline analysis)")
-	crackCmd.Flags().IntVar(&crackExpectedStatus, "expected-status", 0, "HTTP status the server returns for an invalid JWT (0 = auto-detect)")
+	crackCmd.Flags().IntVar(&crackExpectedStatus, "expected-status", 0, "HTTP status the server returns for an invalid JWT (required when the token is already rejected)")
 	crackCmd.Flags().StringVar(&crackKey, "key", "", "Path or URL to PEM public key for hmacconfusion (optional)")
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
 	crackCmd.Flags().StringArrayVar(&crackSecrets, "secret", nil, "Explicit candidate secret for brute-force (repeatable)")

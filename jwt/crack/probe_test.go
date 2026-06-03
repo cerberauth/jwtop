@@ -84,6 +84,18 @@ func staticServer(status int) *httptest.Server {
 	}))
 }
 
+// tokenAwareServer returns validStatus for the original token and rejectedStatus
+// for all other requests, mirroring real server behaviour.
+func tokenAwareServer(token string, validStatus, rejectedStatus int) *httptest.Server {
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer "+token {
+			w.WriteHeader(validStatus)
+		} else {
+			w.WriteHeader(rejectedStatus)
+		}
+	}))
+}
+
 func findResult(results []crack.ProbeResult, name string) (crack.ProbeResult, bool) {
 	for _, r := range results {
 		if r.Name == name {
@@ -103,6 +115,28 @@ func findResultPrefix(results []crack.ProbeResult, prefix string) []crack.ProbeR
 	return out
 }
 
+func TestProbeAll_AlreadyRejectedToken_RequiresExpectedStatus(t *testing.T) {
+	srv := staticServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
+	assert.ErrorContains(t, err, "already rejected")
+}
+
+func TestProbeAll_AlreadyRejectedToken_WithExpectedStatus_Succeeds(t *testing.T) {
+	srv := staticServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, baseline, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:            srv.URL,
+		ExpectedStatus: 401,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 401, baseline)
+}
+
 func TestProbeAll_MalformedToken_ReturnsError(t *testing.T) {
 	srv := staticServer(401)
 	defer srv.Close()
@@ -120,10 +154,10 @@ func TestProbeAll_BaselineProbeError_ReturnsError(t *testing.T) {
 }
 
 func TestProbeAll_NoVerification_NotVulnerable_When401(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -147,10 +181,10 @@ func TestProbeAll_NoVerification_Vulnerable_When200(t *testing.T) {
 }
 
 func TestProbeAll_BaselineStatus_ReturnedCorrectly(t *testing.T) {
-	srv := staticServer(403)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 403)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	_, baseline, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 	assert.Equal(t, 403, baseline)
@@ -179,10 +213,10 @@ func TestProbeAll_WithExpectedStatus_SkipsAutoDetect(t *testing.T) {
 }
 
 func TestProbeAll_AlgNone_ProducesOneResultPerVariant(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -191,10 +225,10 @@ func TestProbeAll_AlgNone_ProducesOneResultPerVariant(t *testing.T) {
 }
 
 func TestProbeAll_AlgNone_NotVulnerable_When401(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -205,10 +239,10 @@ func TestProbeAll_AlgNone_NotVulnerable_When401(t *testing.T) {
 }
 
 func TestProbeAll_BlankSecret_ProbedForHMAC(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -219,10 +253,10 @@ func TestProbeAll_BlankSecret_ProbedForHMAC(t *testing.T) {
 }
 
 func TestProbeAll_BlankSecret_SkippedForAsymmetric(t *testing.T) {
-	srv := staticServer(401)
+	token, _ := makeRS256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token, _ := makeRS256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -241,7 +275,7 @@ func TestProbeAll_NullSig_ProbedForAnyAlgorithm(t *testing.T) {
 		func() string { s, _ := makeRS256Token(t); return s }(),
 		makeES256Token(t),
 	} {
-		results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
+		results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL, ExpectedStatus: 401})
 		require.NoError(t, err)
 
 		r, ok := findResult(results, "Null Signature")
@@ -252,10 +286,10 @@ func TestProbeAll_NullSig_ProbedForAnyAlgorithm(t *testing.T) {
 }
 
 func TestProbeAll_HMACConfusion_SkippedForHMAC(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -266,10 +300,10 @@ func TestProbeAll_HMACConfusion_SkippedForHMAC(t *testing.T) {
 }
 
 func TestProbeAll_HMACConfusion_SkippedWhenNoPublicKey(t *testing.T) {
-	srv := staticServer(401)
+	token, _ := makeRS256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token, _ := makeRS256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL: srv.URL,
 	})
@@ -282,10 +316,10 @@ func TestProbeAll_HMACConfusion_SkippedWhenNoPublicKey(t *testing.T) {
 }
 
 func TestProbeAll_HMACConfusion_ProbedWhenPublicKeyProvided(t *testing.T) {
-	srv := staticServer(401)
+	token, key := makeRS256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token, key := makeRS256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL:          srv.URL,
 		PublicKeyPEM: rsaPublicKeyPEM(t, key),
@@ -299,10 +333,10 @@ func TestProbeAll_HMACConfusion_ProbedWhenPublicKeyProvided(t *testing.T) {
 }
 
 func TestProbeAll_HMACConfusion_SkippedForES256(t *testing.T) {
-	srv := staticServer(401)
+	token := makeES256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeES256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -313,10 +347,10 @@ func TestProbeAll_HMACConfusion_SkippedForES256(t *testing.T) {
 }
 
 func TestProbeAll_KidInjection_SQL_Probed(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -327,10 +361,10 @@ func TestProbeAll_KidInjection_SQL_Probed(t *testing.T) {
 }
 
 func TestProbeAll_KidInjection_Path_Probed(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -341,10 +375,10 @@ func TestProbeAll_KidInjection_Path_Probed(t *testing.T) {
 }
 
 func TestProbeAll_Secret_SkippedForAsymmetric(t *testing.T) {
-	srv := staticServer(401)
+	token, _ := makeRS256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token, _ := makeRS256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL:        srv.URL,
 		Candidates: []string{"secret"},
@@ -358,10 +392,10 @@ func TestProbeAll_Secret_SkippedForAsymmetric(t *testing.T) {
 }
 
 func TestProbeAll_Secret_SkippedWhenNoCandidates(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL: srv.URL,
 	})
@@ -374,10 +408,10 @@ func TestProbeAll_Secret_SkippedWhenNoCandidates(t *testing.T) {
 }
 
 func TestProbeAll_Secret_SkippedWhenNotInCandidates(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "supersecret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "supersecret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL:        srv.URL,
 		Candidates: []string{"wrong", "also-wrong"},
@@ -391,11 +425,11 @@ func TestProbeAll_Secret_SkippedWhenNotInCandidates(t *testing.T) {
 }
 
 func TestProbeAll_Secret_ProbedWhenSecretFound(t *testing.T) {
-	srv := staticServer(401)
-	defer srv.Close()
-
 	const secret = "hunter2"
 	token := makeHS256Token(t, secret)
+	srv := tokenAwareServer(token, 200, 401)
+	defer srv.Close()
+
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
 		URL:        srv.URL,
 		Candidates: []string{"wrong", secret, "also-wrong"},
@@ -410,10 +444,10 @@ func TestProbeAll_Secret_ProbedWhenSecretFound(t *testing.T) {
 }
 
 func TestProbeAll_HMAC_ResultNames(t *testing.T) {
-	srv := staticServer(401)
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
@@ -435,10 +469,10 @@ func TestProbeAll_HMAC_ResultNames(t *testing.T) {
 }
 
 func TestProbeAll_Asymmetric_ResultNames(t *testing.T) {
-	srv := staticServer(401)
+	token, _ := makeRS256Token(t)
+	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
 
-	token, _ := makeRS256Token(t)
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
