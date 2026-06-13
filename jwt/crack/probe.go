@@ -58,9 +58,21 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 	)
 
 	checkNames := make(map[harnessx.CheckID]string, len(checks))
+	checkDefs := make(map[harnessx.CheckID]checkbase.CheckDef, len(checks))
 	for _, c := range checks {
 		checkNames[c.ID] = c.Name
 	}
+	// map each alg_none variant back to the shared Def
+	for _, c := range algnone.Checks {
+		checkDefs[c.ID] = algnone.Def
+	}
+	checkDefs[noverification.Check.ID] = noverification.Def
+	checkDefs[blanksecret.Check.ID] = blanksecret.Def
+	checkDefs[nullsignature.Check.ID] = nullsignature.Def
+	checkDefs[hmacconfusion.Check.ID] = hmacconfusion.Def
+	checkDefs[kidsqlinjection.Check.ID] = kidsqlinjection.Def
+	checkDefs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
+	checkDefs[weaksecret.Check.ID] = weaksecret.Def
 
 	var engineOpts []harnessx.Option
 	if opts.Reporter != nil {
@@ -85,16 +97,29 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 			baselineStatus, _ = harnessx.DataAs[int](r)
 			continue
 		}
+		def := checkDefs[r.CheckID]
 		if pr, ok := harnessx.DataAs[ProbeResult](r); ok {
 			if pr.Name == "" {
 				pr.Name = checkNames[r.CheckID]
 			}
+			pr.CVSSVector = def.CVSSVector
+			pr.CVSSScore = def.CVSSScore
+			pr.CWEID = def.CWEID
+			pr.OWASP = def.OWASP
+			pr.Link = def.Link
+			pr.Description = def.Description
 			results = append(results, pr)
 		} else if r.Skipped {
 			results = append(results, ProbeResult{
-				Name:       checkNames[r.CheckID],
-				Skipped:    true,
-				SkipReason: r.SkipReason,
+				Name:        checkNames[r.CheckID],
+				Skipped:     true,
+				SkipReason:  r.SkipReason,
+				CVSSVector:  def.CVSSVector,
+				CVSSScore:   def.CVSSScore,
+				CWEID:       def.CWEID,
+				OWASP:       def.OWASP,
+				Link:        def.Link,
+				Description: def.Description,
 			})
 		}
 	}

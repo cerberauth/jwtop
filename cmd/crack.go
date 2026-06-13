@@ -8,6 +8,7 @@ import (
 	"github.com/cerberauth/jwtop/jwt/crack"
 	"github.com/cerberauth/jwtop/jwt/exploit"
 	"github.com/cerberauth/x/telemetryx"
+	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -107,54 +108,54 @@ Use only against systems you own or have explicit written permission to test.`,
 			return fmt.Errorf("probing token: %w", err)
 		}
 
-		if offline {
-			fmt.Println("Offline mode — cryptographic analysis only")
-			fmt.Println()
-		} else {
-			fmt.Printf("Baseline (invalid JWT): %d\n\n", baselineStatus)
+		// Print probe errors to stderr; they are not security findings.
+		for _, r := range results {
+			if r.Err != nil {
+				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
+				fmt.Fprintf(os.Stderr, "[!] %s: %v\n", r.Name, r.Err)
+			}
+		}
+
+		formatter, err := cobrareportx.FormatterFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+		writer, cleanup, err := cobrareportx.WriterFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		httpTransport, err := cobrareportx.HTTPTransportFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+
+		rep := &ReportxReporter{
+			Formatter: formatter,
+			Writer:    writer,
+			Transport: httpTransport,
+		}
+		meta := crack.ScanMeta{
+			Target:         crackURL,
+			BaselineStatus: baselineStatus,
+			Offline:        offline,
+			TokenString:    tokenString,
+		}
+		if err := rep.Report(ctx, results, meta); err != nil {
+			return fmt.Errorf("reporting: %w", err)
 		}
 
 		vulnerable := 0
 		for _, r := range results {
-			switch {
-			case r.Skipped:
-				fmt.Printf("[-] %-28s  skipped (%s)\n", r.Name, r.SkipReason)
-			case r.Err != nil:
-				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
-				fmt.Printf("[!] %-28s  error: %v\n", r.Name, r.Err)
-			case r.Vulnerable:
+			if r.Vulnerable {
 				vulnerable++
-				extra := ""
-				if r.Extra != "" {
-					extra = "  (" + r.Extra + ")"
-				}
-				if offline {
-					fmt.Printf("[+] %-28s  CONFIRMED%s\n", r.Name, extra)
-				} else {
-					fmt.Printf("[+] %-28s  %d  VULNERABLE%s\n", r.Name, r.Status, extra)
-				}
-			default:
-				extra := ""
-				if r.Extra != "" {
-					extra = "  (" + r.Extra + ")"
-				}
-				if offline {
-					fmt.Printf("[ ] %-28s  OK%s\n", r.Name, extra)
-				} else {
-					fmt.Printf("[ ] %-28s  %d%s\n", r.Name, r.Status, extra)
-				}
 			}
 		}
-
 		if vulnerable > 0 {
 			successCounter.Add(ctx, 1)
 		} else {
 			notFoundCounter.Add(ctx, 1)
-			if offline {
-				fmt.Fprintln(os.Stderr, "\nNo vulnerabilities confirmed.")
-			} else {
-				fmt.Fprintln(os.Stderr, "\nNo exploits succeeded.")
-			}
 			os.Exit(1)
 		}
 		return nil
@@ -168,4 +169,6 @@ func init() {
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
 	crackCmd.Flags().StringArrayVar(&crackSecrets, "secret", nil, "Explicit candidate secret for brute-force (repeatable)")
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")
+	cobrareportx.RegisterFormatFlags(crackCmd)
+	cobrareportx.RegisterTransportFlags(crackCmd)
 }

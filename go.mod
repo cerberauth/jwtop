@@ -4,6 +4,7 @@ go 1.26.0
 
 require (
 	github.com/cerberauth/harnessx v0.1.1
+	github.com/cerberauth/reportx v0.0.0-00010101000000-000000000000
 	github.com/cerberauth/x v0.0.0-20260602194727-cf4129d1d6dd
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/iancoleman/orderedmap v0.3.0
@@ -43,4 +44,9 @@ require (
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/grpc v1.81.1 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
+)
+
+replace (
+	github.com/cerberauth/reportx => ../reportx
+	github.com/cerberauth/x => ../x
 )
