@@ -20,7 +20,7 @@ func SendProbe(ctx context.Context, p *probe.Probe, url string, token string, st
 		return harnessx.Result{}, err
 	}
 	resp.Body.Close()
-	pr := ProbeResult{Token: token, Status: resp.StatusCode, Vulnerable: resp.StatusCode != baseline}
+	pr := ProbeResult{Payload: token, Status: resp.StatusCode, Vulnerable: resp.StatusCode != baseline}
 	return harnessx.DataResult(pr), nil
 }
 

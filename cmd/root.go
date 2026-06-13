@@ -12,11 +12,13 @@ import (
 var (
 	sqaOptOut    bool
 	otelShutdown func(context.Context) error
+	toolVersion  string
 )
 
 var name = "jwtop"
 
 func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
+	toolVersion = projectVersion
 	var rootCmd = &cobra.Command{
 		Use:     name,
 		Version: projectVersion + " (commit=" + commit + ", built=" + date + ")",

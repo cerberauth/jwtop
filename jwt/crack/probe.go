@@ -19,6 +19,10 @@ import (
 
 type ProbeResult = checkbase.ProbeResult
 
+type CheckDef = checkbase.CheckDef
+
+const BaselineCheckID = checkbase.CheckIDBaseline
+
 type ProbeOptions struct {
 	URL            string
 	ExpectedStatus int
@@ -26,29 +30,15 @@ type ProbeOptions struct {
 	Candidates     []string
 	Workers        int
 	Probe          *probe.Probe
-	Reporter       harnessx.Reporter
+	Reporters      []harnessx.Reporter
 	KidSQLTable    string
 	KidPath        string
 }
 
-func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
-	offline := opts.URL == ""
-	p := opts.Probe
-	if p == nil && !offline {
-		p = probe.New()
-	}
-	pctx := &checkbase.ProbeCtx{
-		TokenString:    tokenString,
-		Probe:          p,
-		PublicKeyPEM:   opts.PublicKeyPEM,
-		Candidates:     opts.Candidates,
-		Workers:        opts.Workers,
-		ExpectedStatus: opts.ExpectedStatus,
-		Offline:        offline,
-		KidSQLTable:    opts.KidSQLTable,
-		KidPath:        opts.KidPath,
-	}
-
+// buildChecks returns the full set of registered checks along with a
+// per-check metadata map (name plus CVSS/CWE/OWASP scoring) keyed by
+// CheckID, since harnessx.Check itself carries no scoring metadata.
+func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	checks := make([]harnessx.Check, 0, len(algnone.Checks)+8)
 	checks = append(checks, baseline.Check, noverification.Check)
 	checks = append(checks, algnone.Checks...)
@@ -61,14 +51,50 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		weaksecret.Check,
 	)
 
-	checkNames := make(map[harnessx.CheckID]string, len(checks))
+	defs := make(map[harnessx.CheckID]CheckDef, len(checks))
+	for _, c := range algnone.Checks {
+		defs[c.ID] = algnone.Def
+	}
+	defs[noverification.Check.ID] = noverification.Def
+	defs[blanksecret.Check.ID] = blanksecret.Def
+	defs[nullsignature.Check.ID] = nullsignature.Def
+	defs[hmacconfusion.Check.ID] = hmacconfusion.Def
+	defs[kidsqlinjection.Check.ID] = kidsqlinjection.Def
+	defs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
+	defs[weaksecret.Check.ID] = weaksecret.Def
 	for _, c := range checks {
-		checkNames[c.ID] = c.Name
+		def := defs[c.ID]
+		def.Name = c.Name
+		defs[c.ID] = def
+	}
+	return checks, defs
+}
+
+// CheckDefs returns per-check metadata (name, CVSS, CWE, OWASP, link,
+// description) keyed by CheckID, for callers that need to enrich results
+// outside of ProbeAll (e.g. a harnessx.Reporter).
+func CheckDefs() map[harnessx.CheckID]CheckDef {
+	_, defs := buildChecks()
+	return defs
+}
+
+func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
+	offline := opts.URL == ""
+	p := opts.Probe
+	if p == nil && !offline {
+		p = probe.New()
+	}
+	pctx := &checkbase.ProbeCtx{
+		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
+		Candidates: opts.Candidates, Workers: opts.Workers, ExpectedStatus: opts.ExpectedStatus,
+		Offline: offline, KidSQLTable: opts.KidSQLTable, KidPath: opts.KidPath,
 	}
 
+	checks, defs := buildChecks()
+
 	var engineOpts []harnessx.Option
-	if opts.Reporter != nil {
-		engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporter))
+	if len(opts.Reporters) > 0 {
+		engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
 	}
 	engine := harnessx.New(engineOpts...)
 	if err := engine.Register(checks...); err != nil {
@@ -91,12 +117,12 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		}
 		if pr, ok := harnessx.DataAs[ProbeResult](r); ok {
 			if pr.Name == "" {
-				pr.Name = checkNames[r.CheckID]
+				pr.Name = defs[r.CheckID].Name
 			}
 			results = append(results, pr)
 		} else if r.Skipped {
 			results = append(results, ProbeResult{
-				Name:       checkNames[r.CheckID],
+				Name:       defs[r.CheckID].Name,
 				Skipped:    true,
 				SkipReason: r.SkipReason,
 			})
