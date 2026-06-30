@@ -16,7 +16,7 @@ var (
 
 var name = "jwtop"
 
-func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
+func NewRootCmd(projectVersion, commit, date, clientID string) (cmd *cobra.Command) {
 	var rootCmd = &cobra.Command{
 		Use:     name,
 		Version: projectVersion + " (commit=" + commit + ", built=" + date + ")",
@@ -41,6 +41,7 @@ func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
 	rootCmd.AddCommand(signCmd)
 	rootCmd.AddCommand(crackCmd)
 	rootCmd.AddCommand(exploitCmd)
+	rootCmd.AddCommand(newAuthCmd(clientID))
 
 	rootCmd.PersistentFlags().BoolVarP(&sqaOptOut, "sqa-opt-out", "", false, "Opt out of sending anonymous usage statistics and crash reports to help improve the tool")
 
@@ -49,8 +50,8 @@ func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
 
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the RootCmd.
-func Execute(projectVersion, commit, date string) {
-	c := NewRootCmd(projectVersion, commit, date)
+func Execute(projectVersion, commit, date, clientID string) {
+	c := NewRootCmd(projectVersion, commit, date, clientID)
 	defer func() {
 		if otelShutdown != nil {
 			_ = otelShutdown(context.Background())
