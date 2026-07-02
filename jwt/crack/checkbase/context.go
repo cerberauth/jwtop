@@ -16,6 +16,13 @@ type ProbeResult struct {
 	Skipped    bool
 	SkipReason string
 	Extra      string
+	// Vulnerability metadata populated from check.yaml
+	CVSSVector  string
+	CVSSScore   float64
+	CWEID       string
+	OWASP       string
+	Link        string
+	Description string
 }
 
 type ProbeCtx struct {
@@ -43,6 +50,10 @@ type CheckDef struct {
 	Link        string   `yaml:"link"`
 	Tags        []string `yaml:"tags"`
 	DependsOn   []string `yaml:"depends_on"`
+	CVSSVector  string   `yaml:"cvss_vector"`
+	CVSSScore   float64  `yaml:"cvss_score"`
+	CWEID       string   `yaml:"cwe_id"`
+	OWASP       string   `yaml:"owasp"`
 }
 
 func (d CheckDef) DependsOnIDs() []harnessx.CheckID {

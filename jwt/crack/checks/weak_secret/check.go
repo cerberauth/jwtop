@@ -13,18 +13,19 @@ import (
 //go:embed check.yaml
 var checkYAML []byte
 
+var Def checkbase.CheckDef
+
 var Check = func() harnessx.Check {
-	var def checkbase.CheckDef
-	if err := yaml.Unmarshal(checkYAML, &def); err != nil {
+	if err := yaml.Unmarshal(checkYAML, &Def); err != nil {
 		panic("weak_secret: failed to parse check.yaml: " + err.Error())
 	}
 	return harnessx.Check{
-		ID:          harnessx.CheckID(def.ID),
-		Name:        def.Name,
-		Description: def.Description,
-		Link:        def.Link,
-		Tags:        def.Tags,
-		DependsOn:   def.DependsOnIDs(),
+		ID:          harnessx.CheckID(Def.ID),
+		Name:        Def.Name,
+		Description: Def.Description,
+		Link:        Def.Link,
+		Tags:        Def.Tags,
+		DependsOn:   Def.DependsOnIDs(),
 		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			if !pctx.IsHMAC {
