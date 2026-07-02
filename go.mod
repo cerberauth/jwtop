@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/cerberauth/harnessx v0.1.1
-	github.com/cerberauth/x v0.0.0-20260602194727-cf4129d1d6dd
+	github.com/cerberauth/x v0.0.0-20260623190707-13254fad694d
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/iancoleman/orderedmap v0.3.0
 	github.com/spf13/cobra v1.10.2
