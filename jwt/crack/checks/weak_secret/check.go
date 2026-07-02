@@ -3,7 +3,6 @@ package weaksecret
 import (
 	"context"
 	_ "embed"
-	"net/http"
 
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
@@ -33,7 +32,7 @@ var Check = func() harnessx.Check {
 			}
 			return ""
 		}),
-		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
+		Run: func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			result, err := exploit.CrackSecret(pctx.TokenString, pctx.Candidates, pctx.Workers)
 			if err != nil {
@@ -42,30 +41,10 @@ var Check = func() harnessx.Check {
 			if !result.Found {
 				return checkbase.SkippedProbeResult("not found in dictionary"), nil
 			}
-			if pctx.Offline {
-				return harnessx.DataResult(checkbase.ProbeResult{
-					Vulnerable: true,
-					Extra:      "secret: " + result.Secret,
-				}), nil
-			}
-			baseline, _ := harnessx.GetData[int](store, checkbase.CheckIDBaseline)
-			req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
-			if err != nil {
-				return harnessx.Result{}, err
-			}
-			req.Header.Set("Authorization", "Bearer "+pctx.TokenString)
-			resp, err := pctx.Probe.Client().Do(req)
-			if err != nil {
-				return harnessx.Result{}, err
-			}
-			resp.Body.Close()
-			pr := checkbase.ProbeResult{
-				Token:      pctx.TokenString,
-				Status:     resp.StatusCode,
-				Vulnerable: resp.StatusCode != baseline,
+			return harnessx.DataResult(checkbase.ProbeResult{
+				Vulnerable: true,
 				Extra:      "secret: " + result.Secret,
-			}
-			return harnessx.DataResult(pr), nil
+			}), nil
 		},
 	}
 }()

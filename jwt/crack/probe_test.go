@@ -115,13 +115,14 @@ func findResultPrefix(results []crack.ProbeResult, prefix string) []crack.ProbeR
 	return out
 }
 
-func TestProbeAll_AlreadyRejectedToken_RequiresExpectedStatus(t *testing.T) {
+func TestProbeAll_AlreadyRejectedToken_AutoDetectsBaseline(t *testing.T) {
 	srv := staticServer(401)
 	defer srv.Close()
 
 	token := makeHS256Token(t, "secret")
-	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
-	assert.ErrorContains(t, err, "already rejected")
+	_, baseline, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
+	require.NoError(t, err)
+	assert.Equal(t, 401, baseline)
 }
 
 func TestProbeAll_AlreadyRejectedToken_WithExpectedStatus_Succeeds(t *testing.T) {
@@ -439,6 +440,7 @@ func TestProbeAll_Secret_ProbedWhenSecretFound(t *testing.T) {
 	r, ok := findResult(results, "Weak Secret")
 	require.True(t, ok)
 	assert.False(t, r.Skipped, "secret probe should not be skipped when secret is found")
+	assert.True(t, r.Vulnerable, "secret was cracked — token is vulnerable")
 	assert.Nil(t, r.Err)
 	assert.Contains(t, r.Extra, secret, "Extra field should contain the found secret")
 }
