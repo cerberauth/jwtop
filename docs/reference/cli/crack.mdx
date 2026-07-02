@@ -31,6 +31,8 @@ jwtop crack <token> --url <url> [flags]
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret for brute-force (repeatable) |
 | `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
+| `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
+| `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
 
 ## Offline mode
 

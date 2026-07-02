@@ -21,6 +21,8 @@ var (
 	crackWordlist       string
 	crackSecrets        []string
 	crackWorkers        int
+	crackKidSQLTable    string
+	crackKidPath        string
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -101,6 +103,8 @@ Use only against systems you own or have explicit written permission to test.`,
 			Candidates:     candidates,
 			Workers:        crackWorkers,
 			Reporter:       reporter,
+			KidSQLTable:    crackKidSQLTable,
+			KidPath:        crackKidPath,
 		})
 		if err != nil {
 			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "probe error")))
@@ -168,4 +172,6 @@ func init() {
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
 	crackCmd.Flags().StringArrayVar(&crackSecrets, "secret", nil, "Explicit candidate secret for brute-force (repeatable)")
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")
+	crackCmd.Flags().StringVar(&crackKidSQLTable, "kid-sql-table", "", "Table name for the kid SQL injection payload (default \""+exploit.DefaultKidSQLTable+"\")")
+	crackCmd.Flags().StringVar(&crackKidPath, "kid-path", "", "File path for the kid path traversal payload (default \""+exploit.DefaultKidPathTraversalPayload+"\")")
 }
