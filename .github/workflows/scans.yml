@@ -96,14 +96,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        challenge:
-          - "jwt-alg-none-bypass"
-          - "jwt-blank-secret"
-          - "jwt-kid-path-traversal"
-          - "jwt-kid-sql-injection"
-          - "jwt-not-verified"
-          - "jwt-null-signature"
-          - "jwt-weak-hmac-secret"
+        include:
+          - challenge: "jwt-alg-none-bypass"
+          - challenge: "jwt-blank-secret"
+          - challenge: "jwt-kid-path-traversal"
+            crack_args: "--kid-path /dev/null"
+          - challenge: "jwt-kid-sql-injection"
+            crack_args: "--kid-sql-table keys"
+          - challenge: "jwt-not-verified"
+          - challenge: "jwt-null-signature"
+          - challenge: "jwt-weak-hmac-secret"
 
     steps:
       - uses: actions/checkout@v7
@@ -131,7 +133,7 @@ jobs:
         id: crack
         continue-on-error: true
         run: |
-          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --sqa-opt-out
+          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --sqa-opt-out
 
       - name: Check for working exploit
         if: ${{ steps.crack.outputs.conclusion == 'failure' }}

@@ -641,6 +641,32 @@ func TestProbeAll_Offline_KidPath_Skipped(t *testing.T) {
 	assert.Contains(t, r.SkipReason, "requires live server")
 }
 
+func TestProbeAll_Offline_KidSQL_CustomTableOption_StillSkipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		KidSQLTable: "custom_tokens",
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID SQL Injection")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_Offline_KidPath_CustomPathOption_StillSkipped(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		KidPath: "/etc/passwd",
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID Path Traversal")
+	require.True(t, ok)
+	assert.True(t, r.Skipped)
+	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
 func TestProbeAll_Offline_WeakSecret_VulnerableWhenSecretInCandidates(t *testing.T) {
 	const secret = "hunter2"
 	token := makeHS256Token(t, secret)
