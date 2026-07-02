@@ -27,6 +27,8 @@ type ProbeOptions struct {
 	Workers        int
 	Probe          *probe.Probe
 	Reporter       harnessx.Reporter
+	KidSQLTable    string
+	KidPath        string
 }
 
 func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
@@ -43,6 +45,8 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		Workers:        opts.Workers,
 		ExpectedStatus: opts.ExpectedStatus,
 		Offline:        offline,
+		KidSQLTable:    opts.KidSQLTable,
+		KidPath:        opts.KidPath,
 	}
 
 	checks := make([]harnessx.Check, 0, len(algnone.Checks)+8)

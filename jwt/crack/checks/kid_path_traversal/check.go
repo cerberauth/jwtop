@@ -33,7 +33,11 @@ var Check = func() harnessx.Check {
 		}),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
-			token, err := exploit.KidPathTraversal(pctx.TokenString, exploit.DefaultKidPathTraversalPayload, []byte(""))
+			path := exploit.DefaultKidPathTraversalPayload
+			if pctx.KidPath != "" {
+				path = pctx.KidPath
+			}
+			token, err := exploit.KidPathTraversal(pctx.TokenString, path, []byte(""))
 			if err != nil {
 				r := harnessx.DataResult(checkbase.ProbeResult{Err: err})
 				r.Err = err

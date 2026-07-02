@@ -33,7 +33,11 @@ var Check = func() harnessx.Check {
 		}),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
-			token, err := exploit.KidSQLInjection(pctx.TokenString, exploit.DefaultKidSQLPayload, []byte("secret"))
+			payload := exploit.DefaultKidSQLPayload
+			if pctx.KidSQLTable != "" {
+				payload = exploit.BuildKidSQLPayload(pctx.KidSQLTable)
+			}
+			token, err := exploit.KidSQLInjection(pctx.TokenString, payload, []byte("secret"))
 			if err != nil {
 				r := harnessx.DataResult(checkbase.ProbeResult{Err: err})
 				r.Err = err

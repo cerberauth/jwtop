@@ -32,6 +32,8 @@ type ProbeCtx struct {
 	Workers        int
 	ExpectedStatus int
 	Offline        bool
+	KidSQLTable    string
+	KidPath        string
 }
 
 type CheckDef struct {
