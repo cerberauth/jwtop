@@ -25,10 +25,13 @@ var Check = func() harnessx.Check {
 		Link:        def.Link,
 		Tags:        def.Tags,
 		DependsOn:   def.DependsOnIDs(),
-		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
+		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, store harnessx.ResultStore) string {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			if !pctx.IsHMAC {
 				return "HMAC-only exploit (token uses " + pctx.Alg + ")"
+			}
+			if pr, ok := harnessx.GetData[checkbase.ProbeResult](store, "blanksecret"); ok && pr.Vulnerable {
+				return "server accepts a blank HMAC secret — see Blank Secret finding"
 			}
 			return ""
 		}),

@@ -6,3 +6,5 @@ tags:
   - algorithm
 depends_on:
   - baseline
+  - no_verification
+  - nullsig

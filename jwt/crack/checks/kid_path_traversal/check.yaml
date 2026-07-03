@@ -6,3 +6,4 @@ tags:
   - injection
 depends_on:
   - baseline
+  - blanksecret

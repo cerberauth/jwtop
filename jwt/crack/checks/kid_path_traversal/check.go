@@ -25,9 +25,12 @@ var Check = func() harnessx.Check {
 		Link:        def.Link,
 		Tags:        def.Tags,
 		DependsOn:   def.DependsOnIDs(),
-		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
+		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, store harnessx.ResultStore) string {
 			if target.Data.(*checkbase.ProbeCtx).Offline {
 				return "requires live server (server-side key lookup)"
+			}
+			if pr, ok := harnessx.GetData[checkbase.ProbeResult](store, "blanksecret"); ok && pr.Vulnerable {
+				return "server accepts a blank HMAC secret regardless of kid — see Blank Secret finding"
 			}
 			return ""
 		}),

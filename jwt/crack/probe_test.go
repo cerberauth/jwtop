@@ -207,8 +207,16 @@ func TestProbeAll_WithExpectedStatus_SkipsAutoDetect(t *testing.T) {
 	require.True(t, ok)
 	assert.False(t, r.Vulnerable, "no_verification checks baselineStatus < 400, not server response")
 
+	// Both nullsig and algnone forge the token independently and probe the
+	// live server — an over-permissive server that accepts everything is a
+	// genuine finding for each, so neither suppresses the other.
+	nullsig, ok := findResult(results, "Null Signature")
+	require.True(t, ok)
+	assert.True(t, nullsig.Vulnerable, "nullsig probe should be vulnerable when server returns 200 vs baseline 401")
+
 	algNone := findResultPrefix(results, "Algorithm None (")
 	for _, ar := range algNone {
+		assert.False(t, ar.Skipped, "algnone should still be probed for a non-none input token")
 		assert.True(t, ar.Vulnerable, "algnone probe should be vulnerable when server returns 200 vs baseline 401")
 	}
 }
@@ -536,7 +544,8 @@ func TestProbeAll_Offline_AlgNone_DetectsExistingAlgNone(t *testing.T) {
 
 	r, ok := findResult(results, "Algorithm None (none)")
 	require.True(t, ok)
-	assert.True(t, r.Vulnerable, "variant 'none' should detect existing alg=none offline")
+	assert.False(t, r.Skipped, "already-none is reported as a finding, not skipped")
+	assert.True(t, r.Vulnerable, "token already using alg=none is itself the vulnerability")
 }
 
 func TestProbeAll_Offline_AlgNone_NotVulnerable_ForNormalToken(t *testing.T) {
@@ -549,18 +558,15 @@ func TestProbeAll_Offline_AlgNone_NotVulnerable_ForNormalToken(t *testing.T) {
 	assert.False(t, r.Vulnerable, "variant 'none' should not be vulnerable for HS256 token offline")
 }
 
-func TestProbeAll_Offline_AlgNone_NonCasedVariants_Skipped(t *testing.T) {
+func TestProbeAll_Offline_AlgNone_AllVariants_Skipped(t *testing.T) {
 	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
 	require.NoError(t, err)
 
-	// variant idx=0 ("none") runs offline; all other capitalizations require live server
+	// algnone requires a live server to demonstrate the manipulation exploit
 	for _, r := range findResultPrefix(results, "Algorithm None (") {
-		if r.Name == "Algorithm None (none)" {
-			assert.False(t, r.Skipped, "variant 'none' should run offline")
-		} else {
-			assert.True(t, r.Skipped, "variant %s should be skipped offline", r.Name)
-		}
+		assert.True(t, r.Skipped, "variant %s should be skipped offline", r.Name)
+		assert.Contains(t, r.SkipReason, "requires live server")
 	}
 }
 

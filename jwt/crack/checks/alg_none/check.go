@@ -31,16 +31,21 @@ func init() {
 			Tags:        def.Tags,
 			DependsOn:   def.DependsOnIDs(),
 			Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
-				if idx > 0 && target.Data.(*checkbase.ProbeCtx).Offline {
+				pctx := target.Data.(*checkbase.ProbeCtx)
+				if idx == 0 && strings.EqualFold(pctx.Alg, "none") {
+					return ""
+				}
+				if pctx.Offline {
 					return "requires live server"
 				}
 				return ""
 			}),
 			Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 				pctx := target.Data.(*checkbase.ProbeCtx)
-				if pctx.Offline {
+				if idx == 0 && strings.EqualFold(pctx.Alg, "none") {
 					return harnessx.DataResult(checkbase.ProbeResult{
-						Vulnerable: strings.EqualFold(pctx.Alg, "none"),
+						Vulnerable: true,
+						Extra:      "token already uses alg=none",
 					}), nil
 				}
 				if pctx.AlgNoneErr != nil {
