@@ -26,6 +26,13 @@ var Check = func() harnessx.Check {
 		Link:        def.Link,
 		Tags:        def.Tags,
 		DependsOn:   def.DependsOnIDs(),
+		Skip: harnessx.SkipWhen(func(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
+			pctx := target.Data.(*checkbase.ProbeCtx)
+			if strings.EqualFold(pctx.Alg, "none") {
+				return "token already uses alg=none — see Algorithm None finding"
+			}
+			return ""
+		}),
 		Run: func(ctx context.Context, target harnessx.Target, store harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
 			if pctx.Offline {

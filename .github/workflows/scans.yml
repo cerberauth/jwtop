@@ -122,7 +122,7 @@ jobs:
 
       - name: Get JWT
         id: get-jwt
-        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-strong-eddsa-key:latest jwt)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest jwt)" >> $GITHUB_OUTPUT
 
       - name: Setup Go environment
         uses: actions/setup-go@v6

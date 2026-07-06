@@ -7,3 +7,4 @@ tags:
   - brute-force
 depends_on:
   - baseline
+  - blanksecret
