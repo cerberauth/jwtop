@@ -21,6 +21,10 @@ type ProbeResult = checkbase.ProbeResult
 
 type CheckDef = checkbase.CheckDef
 
+// TokenLocation describes where the exploited JWT is placed in probe
+// requests. See checkbase.TokenLocation for details and defaults.
+type TokenLocation = checkbase.TokenLocation
+
 const BaselineCheckID = checkbase.CheckIDBaseline
 
 type ProbeOptions struct {
@@ -33,6 +37,7 @@ type ProbeOptions struct {
 	Reporters      []harnessx.Reporter
 	KidSQLTable    string
 	KidPath        string
+	TokenLocation  TokenLocation
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -79,6 +84,9 @@ func CheckDefs() map[harnessx.CheckID]CheckDef {
 }
 
 func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
+	if err := opts.TokenLocation.Validate(); err != nil {
+		return nil, 0, err
+	}
 	offline := opts.URL == ""
 	p := opts.Probe
 	if p == nil && !offline {
@@ -88,6 +96,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
 		Candidates: opts.Candidates, Workers: opts.Workers, ExpectedStatus: opts.ExpectedStatus,
 		Offline: offline, KidSQLTable: opts.KidSQLTable, KidPath: opts.KidPath,
+		TokenLocation: opts.TokenLocation.WithDefaults(),
 	}
 
 	checks, defs := buildChecks()

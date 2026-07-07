@@ -26,6 +26,9 @@ var (
 	crackWorkers        int
 	crackKidSQLTable    string
 	crackKidPath        string
+	crackTokenIn        string
+	crackTokenName      string
+	crackTokenPrefix    string
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -58,6 +61,10 @@ Additional online-only techniques:
   algnone (×4)    alg=none with four common capitalisations
   hmacconfusion   re-sign using a public key as HMAC secret (requires --key)
   kidinjection    SQL injection and path traversal via the kid header
+
+By default the exploited JWT is sent as "Authorization: Bearer <token>".
+Use --token-in/--token-name/--token-prefix to place it elsewhere, e.g. a
+custom header, a cookie, a query parameter, or a form-encoded body field.
 
 Use only against systems you own or have explicit written permission to test.`,
 	Args: cobra.ExactArgs(1),
@@ -133,6 +140,11 @@ Use only against systems you own or have explicit written permission to test.`,
 			Reporters:      []harnessx.Reporter{otelReporter, reportxReporter},
 			KidSQLTable:    crackKidSQLTable,
 			KidPath:        crackKidPath,
+			TokenLocation: crack.TokenLocation{
+				In:     crackTokenIn,
+				Name:   crackTokenName,
+				Prefix: crackTokenPrefix,
+			},
 		})
 		if err != nil {
 			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "probe error")))
@@ -175,6 +187,9 @@ func init() {
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")
 	crackCmd.Flags().StringVar(&crackKidSQLTable, "kid-sql-table", "", "Table name for the kid SQL injection payload (default \""+exploit.DefaultKidSQLTable+"\")")
 	crackCmd.Flags().StringVar(&crackKidPath, "kid-path", "", "File path for the kid path traversal payload (default \""+exploit.DefaultKidPathTraversalPayload+"\")")
+	crackCmd.Flags().StringVar(&crackTokenIn, "token-in", "", "Where to place the exploited JWT: header, cookie, query, or body (default \"header\")")
+	crackCmd.Flags().StringVar(&crackTokenName, "token-name", "", "Header/cookie/query/form-field name for the JWT (default \"Authorization\" for header, \"token\" otherwise)")
+	crackCmd.Flags().StringVar(&crackTokenPrefix, "token-prefix", "", "Value prefix before the token, e.g. \"Bearer \" (default \"Bearer \" only for the default Authorization header)")
 	cobrareportx.RegisterFormatFlags(crackCmd)
 	cobrareportx.RegisterTransportFlags(crackCmd)
 }

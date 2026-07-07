@@ -47,7 +47,7 @@ var Check = func() harnessx.Check {
 				r.Err = err
 				return r, nil
 			}
-			return checkbase.SendProbe(ctx, pctx.Probe, target.URL, token, store)
+			return checkbase.SendProbe(ctx, pctx.Probe, target.URL, token, pctx.TokenLocation, store)
 		},
 	}
 }()

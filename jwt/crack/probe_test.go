@@ -10,7 +10,9 @@ import (
 	"encoding/pem"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync"
 	"testing"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
@@ -94,6 +96,39 @@ func tokenAwareServer(token string, validStatus, rejectedStatus int) *httptest.S
 			w.WriteHeader(rejectedStatus)
 		}
 	}))
+}
+
+type capturedRequest struct {
+	Header   http.Header
+	RawQuery string
+	Cookies  []*http.Cookie
+	Form     url.Values
+}
+
+// newRecordingServer records every request it receives so tests can assert
+// on where the token was placed, without caring which specific check sent it.
+func newRecordingServer(status int) (*httptest.Server, func() []capturedRequest) {
+	var mu sync.Mutex
+	var reqs []capturedRequest
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = r.ParseForm()
+		mu.Lock()
+		reqs = append(reqs, capturedRequest{
+			Header:   r.Header.Clone(),
+			RawQuery: r.URL.RawQuery,
+			Cookies:  r.Cookies(),
+			Form:     r.PostForm,
+		})
+		mu.Unlock()
+		w.WriteHeader(status)
+	}))
+	return srv, func() []capturedRequest {
+		mu.Lock()
+		defer mu.Unlock()
+		out := make([]capturedRequest, len(reqs))
+		copy(out, reqs)
+		return out
+	}
 }
 
 func findResult(results []crack.ProbeResult, name string) (crack.ProbeResult, bool) {
@@ -709,4 +744,130 @@ func TestProbeAll_Offline_WeakSecret_SkippedForAsymmetric(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "HMAC-only")
+}
+
+func TestProbeAll_TokenLocation_DefaultsToAuthorizationBearer(t *testing.T) {
+	srv, requests := newRecordingServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
+	require.NoError(t, err)
+
+	found := false
+	for _, r := range requests() {
+		if strings.HasPrefix(r.Header.Get("Authorization"), "Bearer ") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected at least one request with an Authorization: Bearer header")
+}
+
+func TestProbeAll_TokenLocation_CustomHeader(t *testing.T) {
+	srv, requests := newRecordingServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:           srv.URL,
+		TokenLocation: crack.TokenLocation{In: "header", Name: "X-Auth-Token", Prefix: "Token "},
+	})
+	require.NoError(t, err)
+
+	found := false
+	for _, r := range requests() {
+		assert.Empty(t, r.Header.Get("Authorization"), "token should only be sent via the configured header")
+		if strings.HasPrefix(r.Header.Get("X-Auth-Token"), "Token ") {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected at least one request carrying the token in X-Auth-Token")
+}
+
+func TestProbeAll_TokenLocation_Cookie(t *testing.T) {
+	srv, requests := newRecordingServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:           srv.URL,
+		TokenLocation: crack.TokenLocation{In: "cookie", Name: "session"},
+	})
+	require.NoError(t, err)
+
+	found := false
+	for _, r := range requests() {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		for _, c := range r.Cookies {
+			if c.Name == "session" && c.Value != "" {
+				found = true
+			}
+		}
+	}
+	assert.True(t, found, "expected at least one request carrying the token in the session cookie")
+}
+
+func TestProbeAll_TokenLocation_Query(t *testing.T) {
+	srv, requests := newRecordingServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:           srv.URL,
+		TokenLocation: crack.TokenLocation{In: "query", Name: "access_token"},
+	})
+	require.NoError(t, err)
+
+	found := false
+	for _, r := range requests() {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		q, err := url.ParseQuery(r.RawQuery)
+		require.NoError(t, err)
+		if q.Get("access_token") != "" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected at least one request carrying the token in the access_token query parameter")
+}
+
+func TestProbeAll_TokenLocation_Body(t *testing.T) {
+	srv, requests := newRecordingServer(401)
+	defer srv.Close()
+
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:           srv.URL,
+		TokenLocation: crack.TokenLocation{In: "body", Name: "jwt"},
+	})
+	require.NoError(t, err)
+
+	found := false
+	for _, r := range requests() {
+		assert.Empty(t, r.Header.Get("Authorization"))
+		if r.Form.Get("jwt") != "" {
+			found = true
+		}
+	}
+	assert.True(t, found, "expected at least one request carrying the token in the jwt form field")
+}
+
+func TestProbeAll_TokenLocation_Invalid_ReturnsError(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:           "http://example.invalid",
+		TokenLocation: crack.TokenLocation{In: "banana"},
+	})
+	assert.Error(t, err)
+}
+
+func TestCheckDefs_IncludesBaselineIndependentChecks(t *testing.T) {
+	defs := crack.CheckDefs()
+	assert.NotEmpty(t, defs)
+
+	_, ok := defs[crack.BaselineCheckID]
+	assert.True(t, ok, "baseline check should have its Name populated into the defs map")
+
+	for id, d := range defs {
+		assert.NotEmpty(t, d.Name, "check %q should have a Name populated from its Check definition", id)
+	}
 }

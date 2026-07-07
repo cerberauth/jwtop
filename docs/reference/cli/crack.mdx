@@ -33,6 +33,9 @@ jwtop crack <token> --url <url> [flags]
 | `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
+| `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
+| `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
 
 ## Offline mode
 
@@ -52,6 +55,26 @@ Checks that require a live server (`hmacconfusion`, `kidinjection`, `no_verifica
 When `--url` is provided, a modified token is sent as `Authorization: Bearer <token>` for each technique. A technique is **VULNERABLE** when the server responds with a status code that differs from the baseline (the status returned for a deliberately invalid JWT).
 
 `--expected-status` sets the baseline manually. When omitted, a first request with an invalid token auto-detects it.
+
+### Placing the JWT elsewhere
+
+Authorization: Bearer is only the default. If the target reads the JWT from a cookie, a query parameter, or a form-encoded body instead, use `--token-in`, `--token-name`, and `--token-prefix` to match — every probe request (including baseline auto-detection) follows the same placement.
+
+```sh
+# Cookie
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Query parameter
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Form-encoded POST body
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+
+# Custom header
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
+```
+
+`--token-in body` sends the probe as a POST request; every other location keeps the default GET.
 
 | Technique | Description |
 |---|---|
