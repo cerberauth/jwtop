@@ -4,7 +4,7 @@ go 1.26.0
 
 require (
 	github.com/cerberauth/harnessx v0.1.2
-	github.com/cerberauth/x v0.0.0-20260623190707-13254fad694d
+	github.com/cerberauth/x v0.0.0-20260707181449-f8c5f17d0a5f
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/iancoleman/orderedmap v0.3.0
 	github.com/spf13/cobra v1.10.2
@@ -16,6 +16,7 @@ require (
 
 require (
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
+	github.com/cerberauth/reportx v0.1.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
@@ -38,9 +39,9 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
 	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sys v0.46.0 // indirect
-	golang.org/x/text v0.38.0 // indirect
-	google.golang.org/genproto/googleapis/api v0.0.0-20260630182238-925bb5da69e7 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20260630182238-925bb5da69e7 // indirect
+	golang.org/x/text v0.39.0 // indirect
+	google.golang.org/genproto/googleapis/api v0.0.0-20260706201446-f0a921348800 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20260706201446-f0a921348800 // indirect
 	google.golang.org/grpc v1.82.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )

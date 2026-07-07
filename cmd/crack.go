@@ -4,9 +4,12 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/harnessx/reporters"
 	"github.com/cerberauth/jwtop/jwt/crack"
 	"github.com/cerberauth/jwtop/jwt/exploit"
+	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
+	"github.com/cerberauth/x/reportx/harnessreport"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
@@ -66,7 +69,6 @@ Use only against systems you own or have explicit written permission to test.`,
 
 		ctx := cmd.Context()
 		tokenString := args[0]
-		offline := crackURL == ""
 
 		var pemData []byte
 		if crackKey != "" {
@@ -89,20 +91,46 @@ Use only against systems you own or have explicit written permission to test.`,
 		}
 		candidates = append(candidates, crackSecrets...)
 
-		reporter, _ := reporters.NewOTelReporter(
+		otelReporter, _ := reporters.NewOTelReporter(
 			ctx,
 			otel.Tracer(crackOtelName),
 			telemetryx.GetMeterProvider().Meter(crackOtelName),
 			reporters.WithPrefix("jwt.crack"),
 		)
 
-		results, baselineStatus, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
+		formatter, err := cobrareportx.FormatterFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+		writer, cleanup, err := cobrareportx.WriterFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+		defer cleanup()
+
+		httpTransport, err := cobrareportx.HTTPTransportFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+
+		reportxReporter := harnessreport.New(ctx, harnessreport.Config{
+			ToolName:        name,
+			ToolVersion:     toolVersion,
+			Title:           "JWT Security Scan",
+			Formatter:       formatter,
+			Writer:          writer,
+			Transport:       httpTransport,
+			CheckDefs:       crack.CheckDefs(),
+			BaselineCheckID: crack.BaselineCheckID,
+		})
+
+		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
 			URL:            crackURL,
 			ExpectedStatus: crackExpectedStatus,
 			PublicKeyPEM:   pemData,
 			Candidates:     candidates,
 			Workers:        crackWorkers,
-			Reporter:       reporter,
+			Reporters:      []harnessx.Reporter{otelReporter, reportxReporter},
 			KidSQLTable:    crackKidSQLTable,
 			KidPath:        crackKidPath,
 		})
@@ -111,54 +139,27 @@ Use only against systems you own or have explicit written permission to test.`,
 			return fmt.Errorf("probing token: %w", err)
 		}
 
-		if offline {
-			fmt.Println("Offline mode — cryptographic analysis only")
-			fmt.Println()
-		} else {
-			fmt.Printf("Baseline (invalid JWT): %d\n\n", baselineStatus)
+		for _, r := range results {
+			if r.Err != nil {
+				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
+				fmt.Fprintf(os.Stderr, "[!] %s: %v\n", r.Name, r.Err)
+			}
+		}
+
+		if err := reportxReporter.Err(); err != nil {
+			return fmt.Errorf("reporting: %w", err)
 		}
 
 		vulnerable := 0
 		for _, r := range results {
-			switch {
-			case r.Skipped:
-				fmt.Printf("[-] %-28s  skipped (%s)\n", r.Name, r.SkipReason)
-			case r.Err != nil:
-				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
-				fmt.Printf("[!] %-28s  error: %v\n", r.Name, r.Err)
-			case r.Vulnerable:
+			if r.Vulnerable {
 				vulnerable++
-				extra := ""
-				if r.Extra != "" {
-					extra = "  (" + r.Extra + ")"
-				}
-				if offline {
-					fmt.Printf("[+] %-28s  CONFIRMED%s\n", r.Name, extra)
-				} else {
-					fmt.Printf("[+] %-28s  %d  VULNERABLE%s\n", r.Name, r.Status, extra)
-				}
-			default:
-				extra := ""
-				if r.Extra != "" {
-					extra = "  (" + r.Extra + ")"
-				}
-				if offline {
-					fmt.Printf("[ ] %-28s  OK%s\n", r.Name, extra)
-				} else {
-					fmt.Printf("[ ] %-28s  %d%s\n", r.Name, r.Status, extra)
-				}
 			}
 		}
-
 		if vulnerable > 0 {
 			successCounter.Add(ctx, 1)
 		} else {
 			notFoundCounter.Add(ctx, 1)
-			if offline {
-				fmt.Fprintln(os.Stderr, "\nNo vulnerabilities confirmed.")
-			} else {
-				fmt.Fprintln(os.Stderr, "\nNo exploits succeeded.")
-			}
 			os.Exit(1)
 		}
 		return nil
@@ -174,4 +175,6 @@ func init() {
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")
 	crackCmd.Flags().StringVar(&crackKidSQLTable, "kid-sql-table", "", "Table name for the kid SQL injection payload (default \""+exploit.DefaultKidSQLTable+"\")")
 	crackCmd.Flags().StringVar(&crackKidPath, "kid-path", "", "File path for the kid path traversal payload (default \""+exploit.DefaultKidPathTraversalPayload+"\")")
+	cobrareportx.RegisterFormatFlags(crackCmd)
+	cobrareportx.RegisterTransportFlags(crackCmd)
 }
