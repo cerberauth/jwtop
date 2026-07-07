@@ -4,6 +4,8 @@ github.com/cerberauth/harnessx v0.1.2 h1:yQrqyHGrXv1K3n4BzswR5Yl45MV+Go1vdB3MJt8
 github.com/cerberauth/harnessx v0.1.2/go.mod h1:43pmb2wS4W6cu4QBc0ACjahMbVSR0c4XKChhL9dFVI4=
 github.com/cerberauth/x v0.0.0-20260623190707-13254fad694d h1:vqfvEN636ZAQJR/HOss09aYtdKUm7OTrPqCn5H1tINM=
 github.com/cerberauth/x v0.0.0-20260623190707-13254fad694d/go.mod h1:8B9Bnd/kaGokkI5wHvmFeGhxmd2WKKXDM4dxeX8ATlY=
+github.com/cerberauth/x v0.0.0-20260707181449-f8c5f17d0a5f h1:m2KtVvsuli3pvY7PYbJw/012h2amlTHD0IqJCvmgAtI=
+github.com/cerberauth/x v0.0.0-20260707181449-f8c5f17d0a5f/go.mod h1:plmxqS0fpqJc6wnoL/cJVVIBs34MpOtF0+x6Tixm1Ro=
 github.com/cespare/xxhash/v2 v2.3.0 h1:UL815xU9SqsFlibzuggzjXhog7bL6oX9BbNZnL2UFvs=
 github.com/cespare/xxhash/v2 v2.3.0/go.mod h1:VGX0DQ3Q6kWi7AoAeZDth3/j3BFtOZR5XLFGgcrjCOs=
 github.com/cpuguy83/go-md2man/v2 v2.0.6/go.mod h1:oOW0eioCTA6cOiMLiUPZOpcVxMig6NIQQ7OS05n1F4g=
