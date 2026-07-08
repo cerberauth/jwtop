@@ -21,7 +21,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 
 - **CLI** — decode, verify, create, sign, crack, and exploit tokens from the terminal
 - **Library** — composable Go packages for each operation, designed for direct integration
-- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, blank secret, null signature) and a server vulnerability scanner
+- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
 
 > **Disclaimer:** The `exploit` and `crack` functionality is intended for authorised security testing, penetration testing, CTF competitions, and educational purposes only. Never test systems you do not own or have explicit written permission to test.
 
@@ -41,6 +41,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 | Blank secret | ✓ | ✓ |
 | Null signature | ✓ | ✓ |
 | HMAC confusion (RSA/EC → HMAC) | ✓ | ✓ |
+| Psychic signature (ECDSA r=0, s=0) | ✓ | ✓ |
 | kid injection (SQL, path traversal, raw) | ✓ | ✓ |
 
 ---
@@ -249,7 +250,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `kidinjection` (SQL and path traversal).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal).
 
 ```sh
 # Offline — detect cryptographic weaknesses
@@ -295,6 +296,7 @@ jwtop exploit <subcommand> <token> [flags]
 | `blanksecret` | Re-sign with an empty HMAC secret |
 | `nullsig` | Strip the signature, keep the original `alg` header |
 | `hmacconfusion` | Re-sign an RSA/ECDSA token as HMAC using the public key PEM |
+| `psychicsig` | Re-sign an ECDSA token with an all-zero (r=0, s=0) signature |
 | `weaksecret` | Dictionary-attack the HMAC signing secret |
 | `kidinjection` | Manipulate the `kid` header field and re-sign |
 
@@ -322,6 +324,12 @@ jwtop exploit nullsig $TOKEN
 ```sh
 jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
 jwtop exploit hmacconfusion $TOKEN --key https://example.com/public.pem
+```
+
+**psychicsig** — re-signs `ES256`/`ES384`/`ES512` tokens with an all-zero `r=0, s=0` signature (CVE-2022-21449, "psychic signatures in Java").
+
+```sh
+jwtop exploit psychicsig $TOKEN
 ```
 
 **weaksecret** — dictionary-attack the HMAC signing secret.

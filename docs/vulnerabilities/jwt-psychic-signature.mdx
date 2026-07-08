@@ -1,0 +1,93 @@
+---
+title: JWT Psychic Signature
+description: The "Psychic Signature" vulnerability (CVE-2022-21449) affects ECDSA verification implementations that fail to reject an all-zero (r=0, s=0) signature, allowing attackers to forge tokens for any message and any public key.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>Critical</td>
+  </tr>
+  <tr>
+    <th>CVEs</th>
+    <td>
+      <a href="https://www.cve.org/CVERecord?id=CVE-2022-21449">CVE-2022-21449</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/347.html">CWE-347: Improper Verification of Cryptographic Signature</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/327.html">CWE-327: Use of a Broken or Risky Cryptographic Algorithm</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+The "Psychic Signature" vulnerability, tracked as CVE-2022-21449 and popularised by Neil Madden's blog post ["Psychic Signatures in Java"](https://neilmadden.blog/2022/04/19/psychic-signatures-in-java/), affects ECDSA signature verification in Java 15 through 18 (the `SunEC` provider).
+
+ECDSA verification checks an equation of the form `r == (something involving r and s)`. The very first step of the algorithm is required to reject signatures where `r` or `s` is zero — otherwise the equation degenerates to `0 == 0`, which is trivially true for **any** message and **any** public key. Java's from-scratch rewrite of its EC crypto code (moving off native C++ in JDK 15) omitted this check, so a signature consisting entirely of zero bytes verifies successfully against any ECDSA public key, for any payload.
+
+For JWTs signed with `ES256`, `ES384`, or `ES512`, this means an attacker who can submit an arbitrary signature can forge a token with any claims, without ever knowing the private (or even public) key, as long as the verifier runs on an affected JDK.
+
+## Example
+
+A valid ES256 JWT has a 64-byte raw `R || S` signature. The psychic-signature attack replaces those 64 bytes with all zeros (`r = 0`, `s = 0`) while keeping the header and payload untouched:
+
+```json
+{
+  "alg": "ES256",
+  "typ": "JWT"
+}
+```
+
+```json
+{
+  "sub": "1234567890",
+  "iat": 1516239022
+}
+```
+
+Signature (base64url of 64 zero bytes):
+
+```bash
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+Signature length scales with the curve: 64 bytes for `ES256`, 96 bytes for `ES384`, and 132 bytes for `ES512`.
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT Psychic Signature" vulnerability, you can use the `crack` command:
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+The `psychicsig` probe is skipped automatically for non-ECDSA tokens, and requires a live server (the vulnerability is a property of the verifier's runtime, not something detectable offline from the token alone).
+
+To generate a token with an all-zero ECDSA signature, use the `exploit psychicsig` command:
+
+```bash
+jwtop exploit psychicsig [token]
+```
+
+## What is the impact?
+
+A server running an affected JDK (15, 16, 17, or early 18 patch levels) that verifies ECDSA-signed JWTs accepts a forged token for any claims and any public key. This is a complete authentication bypass: an attacker can impersonate any user, escalate privileges, or forge tokens for services they have no legitimate access to.
+
+## How to remediate?
+
+- **Patch the JDK**: Upgrade to a Java version with the fix for CVE-2022-21449 (JDK 18.0.1, 17.0.3, 15.0.7, or later).
+- **Validate signature components**: If implementing or auditing ECDSA verification directly, ensure `r` and `s` are checked to be in the range `[1, n-1]` (never zero) before use.
+- **Use vetted libraries and test suites**: Cross-check custom or in-house crypto code against [Project Wycheproof](https://github.com/google/wycheproof), which includes test vectors for this exact class of bug.
+- **Defense in depth**: Don't rely solely on signature verification passing — also validate claims (`iss`, `aud`, `exp`) and consider algorithm/key pinning.

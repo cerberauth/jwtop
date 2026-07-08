@@ -29,6 +29,7 @@ Sample output:
 [ ] blanksecret                 401
 [ ] nullsig                     401
 [-] hmacconfusion               skipped (no public key provided)
+[-] psychicsig                  skipped (ECDSA-only exploit)
 [ ] kidinjection (sql)          401
 [ ] kidinjection (path)         401
 [-] secret                      skipped (not found in dictionary)
@@ -99,6 +100,12 @@ jwtop exploit nullsig $TOKEN
 ```sh
 jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
 jwtop exploit hmacconfusion $TOKEN --key https://example.com/public.pem
+```
+
+**Psychic signature (all-zero ECDSA signature, CVE-2022-21449):**
+
+```sh
+jwtop exploit psychicsig $TOKEN
 ```
 
 **kid header injection:**
