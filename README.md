@@ -236,6 +236,9 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
+| `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
+| `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
 
 **Offline checks** (cryptographic proof, no server needed):
 
@@ -260,6 +263,18 @@ jwtop crack $TOKEN --url https://api.example.com/protected
 
 # Online — include hmacconfusion probe
 jwtop crack $TOKEN --url https://api.example.com/protected --key public.pem
+
+# Online — JWT expected in a cookie instead of Authorization header
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Online — JWT expected as a query parameter
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Online — JWT expected in a form-encoded POST body
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+
+# Online — JWT expected in a custom header
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
 ```
 
 Exits `0` when at least one vulnerability was found, `1` when none were.
@@ -449,6 +464,8 @@ results, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
     PublicKeyPEM:   pubPEM, // nil skips hmacconfusion
     Candidates:     exploit.DefaultSecrets,
     Workers:        8,
+    // TokenLocation defaults to Authorization: Bearer <token> when omitted.
+    TokenLocation: crack.TokenLocation{In: "cookie", Name: "session"},
 })
 for _, r := range results {
     switch {

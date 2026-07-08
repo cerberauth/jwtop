@@ -54,7 +54,7 @@ func init() {
 					r.Err = pctx.AlgNoneErr
 					return r, nil
 				}
-				return checkbase.SendProbe(ctx, pctx.Probe, target.URL, pctx.AlgNoneTokens[idx], store)
+				return checkbase.SendProbe(ctx, pctx.Probe, target.URL, pctx.AlgNoneTokens[idx], pctx.TokenLocation, store)
 			},
 		})
 	}

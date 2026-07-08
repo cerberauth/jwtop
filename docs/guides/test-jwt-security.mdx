@@ -53,6 +53,21 @@ jwtop crack $TOKEN --url https://api.example.com/protected \
   --wordlist /path/to/secrets.txt
 ```
 
+**Target expects the JWT somewhere other than the Authorization header:**
+
+```sh
+# Cookie
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Query parameter
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Form-encoded POST body
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+```
+
+See the [`crack` reference](../reference/cli/crack/#placing-the-jwt-elsewhere) for all `--token-in` options.
+
 ## Manual exploit tokens
 
 Use `jwtop exploit` when you need a specific modified token for a targeted test, a report, or a case where the server requires a non-standard request format.

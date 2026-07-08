@@ -3,7 +3,6 @@ package baseline
 import (
 	"context"
 	_ "embed"
-	"net/http"
 	"strings"
 
 	"github.com/cerberauth/harnessx"
@@ -40,6 +39,7 @@ var Check = func() harnessx.Check {
 		DependsOn:   def.DependsOnIDs(),
 		Run: func(ctx context.Context, target harnessx.Target, _ harnessx.ResultStore) (harnessx.Result, error) {
 			pctx := target.Data.(*checkbase.ProbeCtx)
+			pctx.TokenLocation = pctx.TokenLocation.WithDefaults()
 
 			te, err := editor.NewTokenEditor(pctx.TokenString)
 			if err != nil {
@@ -67,11 +67,10 @@ var Check = func() harnessx.Check {
 
 			status := pctx.ExpectedStatus
 			if status == 0 {
-				req, err := http.NewRequestWithContext(ctx, http.MethodGet, target.URL, nil)
+				req, err := checkbase.NewTokenRequest(ctx, target.URL, pctx.InvalidToken, pctx.TokenLocation)
 				if err != nil {
 					return harnessx.Result{}, err
 				}
-				req.Header.Set("Authorization", "Bearer "+pctx.InvalidToken)
 				resp, err := pctx.Probe.Client().Do(req)
 				if err != nil {
 					return harnessx.Result{}, err
