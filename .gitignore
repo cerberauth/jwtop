@@ -22,5 +22,8 @@ go.work
 
 __debug_bin*
 
-jwtop
+/jwtop
 dist/
+
+*-workspace/
+node_modules/

@@ -368,6 +368,48 @@ jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKE
 
 ---
 
+## Agent Skills
+
+This repo ships four Agent Skills under [`skills/`](./skills) — portable `SKILL.md` packages that teach a coding agent how to drive `jwtop` for decoding, auditing, and forging JWTs from plain-language requests instead of typed commands. The format is open and not tied to any one tool — Claude Code, Cursor, OpenCode, Codex, and other agents that support `SKILL.md` packages can all use them.
+
+| Skill | Triggers on |
+|---|---|
+| [`jwtop`](./skills/jwtop) | General driver for the full CLI — decode, verify, create, sign, crack, exploit |
+| [`jwt-decode-explain`](./skills/jwt-decode-explain) | "What's in this token" — plain-language decode + risk explanation, read-only |
+| [`jwt-security-audit`](./skills/jwt-security-audit) | "Is this token/API secure" — runs `crack`, translates findings into a verdict + remediation |
+| [`jwt-token-forge`](./skills/jwt-token-forge) | "Generate a test JWT with claims X" — mints signed fixture tokens, generates keys as needed |
+
+### Install
+
+The easiest way, for any agent, is `npx skills` — it detects which agent you're using and installs into the right directory automatically:
+
+```sh
+npx skills add cerberauth/jwtop --skill jwtop
+npx skills add cerberauth/jwtop --skill jwt-decode-explain
+npx skills add cerberauth/jwtop --skill jwt-security-audit
+npx skills add cerberauth/jwtop --skill jwt-token-forge
+```
+
+**Manual install, Claude Code:** auto-discovers skills from `.claude/skills/` (project) or `~/.claude/skills/` (personal) — a plain top-level `skills/` directory isn't picked up on its own.
+
+Inside a `jwtop` checkout:
+
+```sh
+ln -s ../skills .claude/skills
+```
+
+In any other project, to use these skills everywhere:
+
+```sh
+cp -r skills/jwtop skills/jwt-decode-explain skills/jwt-security-audit skills/jwt-token-forge ~/.claude/skills/
+```
+
+**Manual install, other agents** — consult your tool's docs for where it looks for `SKILL.md` packages; the files here follow the same open format, no jwtop-specific conventions.
+
+Then ask your agent things like "what's in this JWT", "audit this token for vulnerabilities", or "give me an RS256 test token with sub=user123" — the matching skill triggers automatically.
+
+---
+
 ## Library Usage
 
 ### Core operations — `jwt`

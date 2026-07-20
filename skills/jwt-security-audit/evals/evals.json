@@ -1,0 +1,45 @@
+{
+  "skill_name": "jwt-security-audit",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "offline-weak-secret-verdict-and-fix",
+      "prompt": "Is this JWT secure? eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJzdWIiOiJ1c2VyMTIzIn0.Tnm5lFRdW05DFWdvkPVdyccrxaP1c5yZeFhjpgOAU1A No endpoint to test against, just want to know if the token construction itself is safe.",
+      "expected_output": "Runs `jwtop crack` offline (no --url, since no endpoint was given or implied), finds the Weak Secret finding (CWE-345, CVSS 9.3), states the recovered secret is literally \"secret\", explains why that's critical (anyone can forge a token with role=admin), and recommends rotating to a strong random secret stored in a secrets manager rather than just repeating the CVSS score.",
+      "assertions": [
+        "Runs `jwtop crack` (does not hand-roll a dictionary attack or just decode and guess)",
+        "Runs offline only, no --url, since no endpoint was mentioned",
+        "Correctly identifies the finding as Weak Secret / CWE-345",
+        "States the concrete recovered secret value is \"secret\" (not just 'a weak secret was found')",
+        "Explains the practical impact in terms of this token (e.g. forging role=admin), not just restating the CVSS score",
+        "Gives a concrete remediation: rotate to a strong random secret and store it securely, not a vague 'use a better secret'"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "own-staging-endpoint-prioritized-audit",
+      "prompt": "We run our own orders-service (staging.orders.internal.example) and I want a full JWT security audit before we go to prod — both the token itself and whether staging actually accepts the bad variants. Token: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJvcmRlcnMtc2VydmljZSIsInJvbGUiOiJ1c2VyIiwic3ViIjoiYXBpLXVzZXItNzcifQ.qIprVTSzBfRN_FSGS_VXTlcZ86Vahbw3Mp8fOnW5Ad_tqTDFAfiNvrqU6sGJM4qWkVG_hNKhLXsHo4nCwaHQsCdGTsiNSeolfgbbhpRB21iU6V6mzYaC1CCf57LhWr5EVtHVADl4iV3LrYmgyaxppT9DBZgTOj1-UuCXKD_unu-cF1-dzqBS0YV8Kp5uksYKSBGJflr2EpWZk4E8oEHHwXkJ1052zTq4HdUFrHBCZCJoqD-oY1P8nQ6AEi01Z_3fBYKeQsVYsLPMfaWe0_OEkyTlRXD3gAPDcRbLBA6FzFd4hApgTHuS2vSgMseWCSRSvLbsfj63K4dv6aPGyqzkmg -- we don't have the public key on hand, is that something you need from us?",
+      "expected_output": "Recognizes this is the user's own service (no extra authorization confirmation needed), decodes to see alg=RS256, correctly notes that HMAC Confusion needs the server's public key (which the user says they don't have handy) and explains where to get it (JWKS endpoint, cert, or wherever the app exposes it) rather than skipping the check silently. Runs crack offline plus --url against the staging endpoint for the checks that don't need the key, and gives a prioritized fix list once results come back, explaining that a live-server confirmed hit outranks a theoretical/offline-only finding.",
+      "assertions": [
+        "Does not demand additional proof of authorization — the user already stated it's their own service",
+        "Decodes or otherwise identifies alg=RS256 before deciding which checks apply",
+        "Correctly explains that HMAC Confusion requires the server's public key (--key) and tells the user where to typically find one (JWKS/.well-known, certificate, etc.) rather than silently dropping the check",
+        "Runs jwtop crack against the staging URL for the checks that don't require the missing key",
+        "Final answer ranks/prioritizes findings rather than listing them in arbitrary order, explicitly favoring confirmed live-server hits over theoretical ones"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "compliance-markdown-report-with-remediation",
+      "prompt": "Security team needs a markdown writeup for our quarterly access-review doc covering this token's algorithm/signature security. It's an ES256 token from our own internal auth service: eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3ODM3ODA3MjIsImlhdCI6MTc4Mzc3NzEyMiwiaXNzIjoiYXV0aC5pbnRlcm5hbC5leGFtcGxlIiwicm9sZSI6InVzZXIiLCJzdWIiOiJub2RlLWFwcC11c2VyLTE5In0.g2ow6EOMLCS2mqz20vyN9LsUjvh_wxjhEkNGl06f2MwE2ZjPU6XTVxB6V65NgbXbu2Bq2K3tq26IQC1PMH0ajg -- please explain any CWE/CVSS findings in plain English too since not everyone on the distribution list is technical.",
+      "expected_output": "Identifies ES256 as relevant to the Psychic Signature check (CVE-2022-21449), runs an offline crack (no endpoint given), and produces a markdown report that both satisfies the --format markdown ask and translates any CWE/CVSS jargon into plain language a non-technical reader can follow, plus remediation guidance (patch JDK version if applicable, validate r/s are non-zero, defense in depth via claims validation).",
+      "assertions": [
+        "Recognizes ES256 makes the Psychic Signature (CVE-2022-21449) check relevant",
+        "Produces or offers a markdown-formatted report as requested",
+        "Explains any CWE/CVSS identifiers in plain language rather than just citing the codes",
+        "Includes concrete remediation advice (e.g. JDK patch version, validating ECDSA r/s are non-zero) not just a restated finding",
+        "Does not demand extra authorization confirmation since the user stated it's their own internal service"
+      ]
+    }
+  ]
+}

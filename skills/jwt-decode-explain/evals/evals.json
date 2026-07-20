@@ -1,0 +1,45 @@
+{
+  "skill_name": "jwt-decode-explain",
+  "evals": [
+    {
+      "id": 1,
+      "eval_name": "plaintext-pii-no-exp",
+      "prompt": "Found this JWT in a browser localStorage dump during a customer's support session, can you explain what's in it? eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyLTg4MiIsImVtYWlsIjoiamRvZUBhY21lY29ycC5jb20iLCJpYXQiOjE3MDAwMDAwMDB9.k3F9pQzXyN2rL8vB6tHsWc4dEaJmYoU1",
+      "expected_output": "Decodes the token (no verify — no key given), lists sub=user-882, email=jdoe@acmecorp.com, iat translated to a real date. Flags two things: no exp claim at all (token never expires on its own) and the email sitting in plaintext claims (JWTs are encoded not encrypted). Does not claim the signature was checked.",
+      "assertions": [
+        "Decodes without attempting to verify a signature (no secret/key was provided)",
+        "Correctly reports sub=user-882 and email=jdoe@acmecorp.com",
+        "Converts iat (1700000000) into an actual human-readable date rather than leaving it as a raw Unix timestamp",
+        "Flags the missing exp claim and explains the token has no built-in expiration",
+        "Flags that the email is readable in plaintext because JWTs are encoded, not encrypted",
+        "Does not claim or imply the signature was verified or that the token is 'valid'"
+      ]
+    },
+    {
+      "id": 2,
+      "eval_name": "alg-none-jku-header-injection",
+      "prompt": "is this token dangerous? eyJhbGciOiJub25lIiwidHlwIjoiSldUIiwiamt1IjoiaHR0cHM6Ly9ldmlsLmV4YW1wbGUuY29tL2tleXMuanNvbiJ9.eyJzdWIiOiJhZG1pbiIsInJvbGUiOiJhZG1pbiIsImlhdCI6MTcwMDAwMDAwMH0.",
+      "expected_output": "Decodes header and claims, identifies alg=none as a critical finding (signature-less token, high severity if any server accepts it), and separately flags the jku header pointing at an external URL as a header-injection risk (verifier could be tricked into fetching an attacker-controlled key). Notes claims include role=admin. Explains why alg=none is dangerous rather than just labeling it.",
+      "assertions": [
+        "Correctly identifies alg=none in the header",
+        "Explains *why* alg=none is dangerous (signature verification is skipped/bypassed), not just that it's present",
+        "Identifies and flags the jku field as pointing to an external URL, explaining the header-injection risk of a verifier fetching a key from attacker-controlled location",
+        "Reports the claims sub=admin and role=admin",
+        "Rates or clearly signals this as high severity / seriously risky, not a minor note"
+      ]
+    },
+    {
+      "id": 3,
+      "eval_name": "kid-injection-shape-and-long-lifetime",
+      "prompt": "Our partner integration team sent over this JWT as a sample of what their API issues to us, wanted a sanity check before we wire up verification on our end: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6Ii4uLy4uLy4uLy4uL2Rldi9udWxsIn0.eyJzdWIiOiJ1c2VyLTU1IiwiaXNzIjoicGFydG5lci1hcGkiLCJhdWQiOiJpbnRlcm5hbC1hcGkiLCJpYXQiOjE3MDAwMDAwMDAsImV4cCI6MjAwMDAwMDAwMH0.r7NcQeT3zVm9WxKpL2hYbUdAoFgS5jIn",
+      "expected_output": "Decodes the token, notices the kid value ('../../../../dev/null') looks like a path-traversal payload rather than a normal key identifier and flags it as a smell worth asking the partner team about. Computes that exp (2000000000) is roughly a decade after iat (1700000000) and flags this as an implausibly long lifetime for a token. Notes iss=partner-api/aud=internal-api are present but that this alone doesn't confirm the receiving side validates them.",
+      "assertions": [
+        "Flags the kid value as looking like a path-traversal string, not a normal opaque key ID",
+        "Computes/states that the gap between iat and exp is roughly 10 years and calls out the implausibly long lifetime",
+        "Reports iss=partner-api and aud=internal-api",
+        "Notes that having iss/aud present doesn't by itself prove the receiving service validates them",
+        "Does not claim to have verified the signature (no key/secret was given)"
+      ]
+    }
+  ]
+}
