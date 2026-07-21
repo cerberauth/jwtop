@@ -56,6 +56,14 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 go install github.com/cerberauth/jwtop@latest
 ```
 
+**Using Docker:**
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop decode $TOKEN
+```
+
+See [Docker](#docker) below for volume mounts, Compose, and CI usage.
+
 **From source:**
 
 ```sh
@@ -81,6 +89,27 @@ go get github.com/cerberauth/jwtop/jwt/exploit
 # Server vulnerability prober
 go get github.com/cerberauth/jwtop/jwt/crack
 ```
+
+---
+
+## Docker
+
+Images are published on every release. The entrypoint is the `jwtop` binary, so any CLI command works after the image name:
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop decode $TOKEN
+```
+
+Also available at `cerberauth/jwtop` on Docker Hub.
+
+Commands that need a file on disk (`verify --key`, `crack --wordlist`, ...) require a volume mount:
+
+```sh
+docker run --rm -v "$(pwd)":/data ghcr.io/cerberauth/jwtop \
+  crack $TOKEN --url https://api.example.com/protected --wordlist /data/secrets.txt
+```
+
+See the [Docker guide](./docs/docker.mdx) for Compose usage, network joining to probe a co-located server, and building the dev image from source.
 
 ---
 
