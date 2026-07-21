@@ -1,0 +1,111 @@
+---
+title: Docker
+description: Run JWTop from a container — no local Go toolchain required.
+sidebar:
+  order: 5
+---
+
+import { Steps, Aside, Tabs, TabItem } from '@/components/docs';
+
+`jwtop` is published on Docker Hub and GHCR. The entrypoint is the `jwtop` binary itself, so any CLI command works after the image name.
+
+## Quick start
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop decode $TOKEN
+```
+
+```sh
+docker run --rm cerberauth/jwtop decode $TOKEN
+```
+
+## Mounting keys and wordlists
+
+Commands that read a PEM key or a wordlist file (`verify --key`, `create --key`, `crack --wordlist`, ...) need that file inside the container. Mount the containing directory as a volume and reference the in-container path:
+
+```sh
+docker run --rm -v "$(pwd)":/data ghcr.io/cerberauth/jwtop \
+  verify $TOKEN --key /data/public.pem
+```
+
+```sh
+docker run --rm -v "$(pwd)":/data ghcr.io/cerberauth/jwtop \
+  crack $TOKEN --wordlist /data/secrets.txt
+```
+
+## Probing a live server
+
+<Aside type="caution">
+  Only run `crack` and `exploit` against systems you own or have explicit written permission to test.
+</Aside>
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop \
+  crack $TOKEN --url https://api.example.com/protected
+```
+
+When probing a server running in another container, join its network:
+
+```sh
+docker run --rm --network container:api ghcr.io/cerberauth/jwtop \
+  crack $TOKEN --url http://localhost:8080/protected
+```
+
+## Docker Compose
+
+Run `jwtop` as a one-off step alongside a service under test:
+
+```yaml
+services:
+  api:
+    build: .
+    ports:
+      - '8080:8080'
+
+  jwtop:
+    image: ghcr.io/cerberauth/jwtop
+    depends_on:
+      - api
+    volumes:
+      - ./keys:/data
+    command: ['crack', '${TOKEN}', '--url', 'http://api:8080/protected', '--key', '/data/public.pem']
+```
+
+```sh
+docker compose run --rm jwtop
+```
+
+## Build from source
+
+<Steps>
+
+1. Clone the repository:
+
+   ```sh
+   git clone https://github.com/cerberauth/jwtop.git
+   cd jwtop
+   ```
+
+2. Build the image using the dev Dockerfile:
+
+   ```sh
+   docker build -f .docker/Dockerfile-build -t jwtop .
+   ```
+
+3. Run it:
+
+   ```sh
+   docker run --rm jwtop decode $TOKEN
+   ```
+
+</Steps>
+
+## GitHub Actions
+
+To run `jwtop` in CI without pulling the image manually, see the [GitHub Actions guide](./github-actions/) — `cerberauth/jwtop-action` handles installation for you. To use the container image directly in a workflow step instead:
+
+```yaml
+- name: Scan for JWT vulnerabilities
+  run: docker run --rm ghcr.io/cerberauth/jwtop crack "${{ secrets.TEST_TOKEN }}" --url https://staging.example.com/protected
+```
+</content>
