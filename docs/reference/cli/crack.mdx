@@ -48,7 +48,7 @@ When `--url` is omitted, checks are limited to what can be determined from the t
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | HMAC signing secret found via dictionary brute-force |
 
-Checks that require a live server (`hmacconfusion`, `psychicsig`, `kidinjection`, `no_verification`, and `algnone` casing variants) are skipped with an explanatory message.
+Checks that require a live server (`hmacconfusion`, `psychicsig`, `kidinjection`, `jwkinjection`, `no_verification`, and `algnone` casing variants) are skipped with an explanatory message.
 
 ## Online mode
 
@@ -85,6 +85,7 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --t
 | `psychicsig` | Re-sign ECDSA tokens with an all-zero (r=0, s=0) signature — CVE-2022-21449 (skipped for non-ECDSA algorithms) |
 | `kidinjection (sql)` | SQL injection via the `kid` header |
 | `kidinjection (path)` | Path traversal via the `kid` header |
+| `jwkinjection` | Self-signed JWK embedded in the header and trusted by the server — CVE-2018-0114 (skipped for non-asymmetric algorithms) |
 | `weaksecret` | Dictionary brute-force of the HMAC signing secret |
 
 ## Output format

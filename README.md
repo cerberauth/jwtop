@@ -21,7 +21,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 
 - **CLI** — decode, verify, create, sign, crack, and exploit tokens from the terminal
 - **Library** — composable Go packages for each operation, designed for direct integration
-- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
+- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
 
 > **Disclaimer:** The `exploit` and `crack` functionality is intended for authorised security testing, penetration testing, CTF competitions, and educational purposes only. Never test systems you do not own or have explicit written permission to test.
 
@@ -43,6 +43,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 | HMAC confusion (RSA/EC → HMAC) | ✓ | ✓ |
 | Psychic signature (ECDSA r=0, s=0) | ✓ | ✓ |
 | kid injection (SQL, path traversal, raw) | ✓ | ✓ |
+| JWK header injection (CVE-2018-0114) | ✓ | ✓ |
 
 ---
 
@@ -279,7 +280,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114).
 
 ```sh
 # Offline — detect cryptographic weaknesses
@@ -328,6 +329,7 @@ jwtop exploit <subcommand> <token> [flags]
 | `psychicsig` | Re-sign an ECDSA token with an all-zero (r=0, s=0) signature |
 | `weaksecret` | Dictionary-attack the HMAC signing secret |
 | `kidinjection` | Manipulate the `kid` header field and re-sign |
+| `jwkinjection` | Embed a self-signed JWK in the header and re-sign (CVE-2018-0114) |
 
 **algnone**
 
@@ -394,6 +396,19 @@ jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKE
 | `--secret` | HMAC secret to sign with (overrides mode default) |
 | `--sql-table` | Table name for `sql` mode payload (default `tokens`) |
 | `--path` | File path for `path` mode payload (default `/dev/null`) |
+
+**jwkinjection** — generates a self-signed RSA/ECDSA key pair, embeds the public key directly in the token's `jwk` header field, and re-signs with the matching private key (CVE-2018-0114). Servers that trust an embedded `jwk` instead of validating against a known keyset accept the forged token.
+
+```sh
+jwtop exploit jwkinjection $TOKEN                            # generates an RS256 key pair
+jwtop exploit jwkinjection $TOKEN --alg ES256                 # generates an ES256 key pair
+jwtop exploit jwkinjection $TOKEN --key /path/to/private.pem  # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
 
 ---
 
@@ -523,6 +538,8 @@ token, err   = exploit.HMACConfusion(tokenString, pubPEM)
 token, err   = exploit.KidSQLInjection(tokenString, exploit.DefaultKidSQLPayload, []byte("secret"))
 token, err   = exploit.KidPathTraversal(tokenString, exploit.DefaultKidPathTraversalPayload, []byte(""))
 token, err   = exploit.KidInjection(tokenString, "../../etc/shadow", jwtlib.SigningMethodHS256, []byte(""))
+token, err   = exploit.JWKInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair
+token, err   = exploit.JWKInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
 
 // HMAC secret cracking
 result, err := exploit.CrackSecret(tokenString, exploit.WeakSecrets(), 8)

@@ -1,0 +1,97 @@
+---
+title: JWT JWK Header Injection
+description: JWT JWK Header Injection (CVE-2018-0114) occurs when a server trusts a public key embedded directly in the token's `jwk` header instead of validating against a known keyset, allowing attackers to forge tokens signed with their own key.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+The `jwk` JWT header field (RFC 7515 §4.1.3) lets a token embed the public key needed to verify its own signature. It exists for cases where the verifier doesn't yet have the signer's key material. Some JWT libraries — notably early versions of `express-jwt`/`node-jsonwebtoken` (CVE-2018-0114) — implicitly trusted whatever key was embedded there instead of checking it against a known, pinned keyset or the server's own JWKS endpoint.
+
+An attacker who controls this trust gap simply generates their own key pair, embeds the public half in the `jwk` header, and signs the token with the matching private key. Since the server extracts and uses the attacker-supplied key to verify the attacker-supplied signature, the check always passes — for any claims the attacker chooses.
+
+## Example
+
+Here is a valid JWT signed with RS256 by the server's real key:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.<signature>
+```
+
+The attacker generates a fresh RSA key pair, embeds the public key in the `jwk` header, sets `kid` to match, and re-signs with the private half:
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "jwk-injection",
+  "jwk": {
+    "kty": "RSA",
+    "use": "sig",
+    "kid": "jwk-injection",
+    "alg": "RS256",
+    "n": "xXMZbZPrGVs550WbJ0FJRMLijFY7wDDME1dV88KGQPzJ...",
+    "e": "AQAB"
+  }
+}
+```
+
+A vulnerable server reads the public key straight out of `jwk`, verifies the signature against it (which succeeds — the attacker signed with the matching private key), and treats the token as authentic.
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT JWK Header Injection" vulnerability, you can use the `crack` command:
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+The check only runs against RSA/ECDSA (`RS*`/`ES*`/`PS*`) tokens — a server that trusts an embedded `jwk` has no reason to do so for HMAC-signed tokens.
+
+To generate a token with a self-signed `jwk` injected, use the `exploit jwkinjection` command:
+
+<Tabs>
+  <TabItem label="Generate a new key pair">
+```bash
+jwtop exploit jwkinjection [token]
+```
+  </TabItem>
+  <TabItem label="Choose the algorithm">
+```bash
+jwtop exploit jwkinjection [token] --alg ES256
+```
+  </TabItem>
+  <TabItem label="Re-sign with an existing key">
+```bash
+jwtop exploit jwkinjection [token] --key /path/to/private.pem
+```
+  </TabItem>
+</Tabs>
+
+## What is the impact?
+
+A successful JWK injection attack allows an attacker to forge a JWT that the server accepts as legitimate, with no knowledge of the server's actual signing key. This can lead to full authentication bypass, privilege escalation, or impersonation of any user in the system.
+
+## How to remediate?
+
+- **Never resolve the verification key from the token itself.** Ignore the `jwk` (and `jku`, `x5u`) header fields when verifying — look up the key server-side by `kid` against a pinned keyset or your own JWKS endpoint.
+- **If `jwk`/`jku` support is unavoidable**, restrict it to an explicit allowlist of trusted keys or issuers, and never accept a key the token itself supplies as proof of its own authenticity.
+- **Pin the expected algorithm and key(s) per issuer** so a token cannot dictate which key or algorithm family verifies it.
