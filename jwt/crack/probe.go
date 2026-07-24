@@ -10,6 +10,7 @@ import (
 	"github.com/cerberauth/jwtop/jwt/crack/checks/baseline"
 	blanksecret "github.com/cerberauth/jwtop/jwt/crack/checks/blank_secret"
 	hmacconfusion "github.com/cerberauth/jwtop/jwt/crack/checks/hmac_confusion"
+	jwkinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jwk_injection"
 	kidpathtraversal "github.com/cerberauth/jwtop/jwt/crack/checks/kid_path_traversal"
 	kidsqlinjection "github.com/cerberauth/jwtop/jwt/crack/checks/kid_sql_injection"
 	noverification "github.com/cerberauth/jwtop/jwt/crack/checks/no_verification"
@@ -45,7 +46,7 @@ type ProbeOptions struct {
 // per-check metadata map (name plus CVSS/CWE/OWASP scoring) keyed by
 // CheckID, since harnessx.Check itself carries no scoring metadata.
 func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
-	checks := make([]harnessx.Check, 0, len(algnone.Checks)+9)
+	checks := make([]harnessx.Check, 0, len(algnone.Checks)+10)
 	checks = append(checks, baseline.Check, noverification.Check)
 	checks = append(checks, algnone.Checks...)
 	checks = append(checks,
@@ -55,6 +56,7 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		psychicsignature.Check,
 		kidsqlinjection.Check,
 		kidpathtraversal.Check,
+		jwkinjection.Check,
 		weaksecret.Check,
 	)
 
@@ -69,6 +71,7 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[psychicsignature.Check.ID] = psychicsignature.Def
 	defs[kidsqlinjection.Check.ID] = kidsqlinjection.Def
 	defs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
+	defs[jwkinjection.Check.ID] = jwkinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
 	for _, c := range checks {
 		def := defs[c.ID]

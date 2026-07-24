@@ -51,6 +51,9 @@ jobs:
       - name: Exploit weak / known secret
         run: go run main.go exploit weaksecret --secret testsecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
+      - name: Exploit jwkinjection
+        run: go run main.go exploit jwkinjection ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
       - name: Generate RSA key pair
         run: |
           openssl genrsa -out private_key.pem 2048
@@ -74,6 +77,9 @@ jobs:
 
       - name: Exploit psychicsig
         run: go run main.go exploit psychicsig ${{ steps.create-es256.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit jwkinjection (ES256)
+        run: go run main.go exploit jwkinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --sqa-opt-out
 
   run-jwt-crack-offline:
     name: JWT Crack - Offline Mode
@@ -111,6 +117,7 @@ jobs:
         include:
           - challenge: "jwt-alg-none-bypass"
           - challenge: "jwt-blank-secret"
+          - challenge: "jwt-jwk-header-injection"
           - challenge: "jwt-kid-path-traversal"
             crack_args: "--kid-path /dev/null"
           - challenge: "jwt-kid-sql-injection"

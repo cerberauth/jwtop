@@ -61,6 +61,7 @@ Additional online-only techniques:
   algnone (×4)    alg=none with four common capitalisations
   hmacconfusion   re-sign using a public key as HMAC secret (requires --key)
   kidinjection    SQL injection and path traversal via the kid header
+  jwkinjection    self-signed JWK embedded in the header (RSA/ECDSA only)
 
 By default the exploited JWT is sent as "Authorization: Bearer <token>".
 Use --token-in/--token-name/--token-prefix to place it elsewhere, e.g. a

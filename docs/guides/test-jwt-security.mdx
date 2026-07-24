@@ -32,6 +32,7 @@ Sample output:
 [-] psychicsig                  skipped (ECDSA-only exploit)
 [ ] kidinjection (sql)          401
 [ ] kidinjection (path)         401
+[-] jwkinjection                skipped (jwk injection not applicable for HS256)
 [-] secret                      skipped (not found in dictionary)
 ```
 
@@ -116,6 +117,13 @@ jwtop exploit kidinjection --mode sql $TOKEN
 
 # Path traversal variant
 jwtop exploit kidinjection --mode path $TOKEN
+```
+
+**JWK header injection (self-signed key, CVE-2018-0114):**
+
+```sh
+jwtop exploit jwkinjection $TOKEN
+jwtop exploit jwkinjection $TOKEN --alg ES256
 ```
 
 **Brute-force HMAC secret:**
