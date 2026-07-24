@@ -26,10 +26,12 @@ import { Tabs, TabItem } from '@/components/docs'
 
 The `kid` (Key ID) JWT header field is intended to tell the server which key to use for signature verification. When this value is passed unsanitized to a database query or a file system lookup, attackers can inject a payload that causes the server to use an attacker-controlled key, effectively allowing them to forge arbitrary tokens.
 
-JWTop tests two variants of this attack:
+JWTop tests four variants of this attack:
 
 - **SQL Injection** — injects a SQL payload into `kid` (e.g. `' UNION SELECT 'secret' ...`) so that the database returns a known value as the key.
 - **Path Traversal** — sets `kid` to a filesystem path such as `/dev/null` so the server reads an empty file as the key, which can be matched with an empty HMAC secret.
+- **Command Injection** — sets `kid` to a shell metacharacter payload (e.g. `; id`, `$(id)`) targeting servers that shell out using the `kid` value to locate a key file.
+- **LDAP Injection** — sets `kid` to an LDAP filter metacharacter payload (e.g. `*)(uid=*`) targeting servers that use the `kid` value in an LDAP lookup to resolve a signing key.
 
 ## Example
 
@@ -63,6 +65,30 @@ The attacker sets `kid` to `/dev/null` and re-signs the token with an empty HMAC
 }
 ```
 
+### Command Injection variant
+
+The attacker sets `kid` to a shell metacharacter payload and re-signs the token with an empty HMAC secret. If the server shells out with the `kid` value to locate a key file (e.g. `openssl ... -in keys/$kid.pem`), the injected command runs on the server:
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "; id"
+}
+```
+
+### LDAP Injection variant
+
+The attacker sets `kid` to an LDAP filter metacharacter payload and re-signs the token with an empty HMAC secret. If the server interpolates the `kid` value into an LDAP search filter to resolve a signing key (e.g. `(&(objectClass=key)(kid=$kid))`), the injected filter term can make the lookup match an unintended entry:
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "*)(uid=*))(|(uid=*"
+}
+```
+
 ## How to test?
 
 If you want to test if your server is vulnerable to the "JWT KID Injection" vulnerability, you can use the `crack` command:
@@ -70,6 +96,8 @@ If you want to test if your server is vulnerable to the "JWT KID Injection" vuln
 ```bash
 jwtop crack [token] --url [url]
 ```
+
+> The `crack` server probe currently covers the SQL Injection and Path Traversal variants only. Command Injection and LDAP Injection are exploit-only — generate the token below and test it against your server manually.
 
 To generate a token with a `kid` injection payload, use the `exploit kidinjection` command:
 
@@ -82,6 +110,18 @@ jwtop exploit kidinjection [token] --mode sql
   <TabItem label="Path Traversal">
 ```bash
 jwtop exploit kidinjection [token] --mode path
+```
+  </TabItem>
+  <TabItem label="Command Injection">
+```bash
+jwtop exploit kidinjection [token] --mode command
+jwtop exploit kidinjection [token] --mode command --all  # try every shell payload variant
+```
+  </TabItem>
+  <TabItem label="LDAP Injection">
+```bash
+jwtop exploit kidinjection [token] --mode ldap
+jwtop exploit kidinjection [token] --mode ldap --all  # try every LDAP payload variant
 ```
   </TabItem>
   <TabItem label="Custom Payload">
@@ -97,7 +137,9 @@ A successful KID injection attack allows an attacker to forge a JWT that the ser
 
 ## How to remediate?
 
-- **Validate the `kid` value** before using it — reject values containing SQL metacharacters, path separators, or characters outside a safe allowlist (e.g. alphanumeric and hyphens only).
+- **Validate the `kid` value** before using it — reject values containing SQL metacharacters, path separators, shell metacharacters, LDAP filter metacharacters, or characters outside a safe allowlist (e.g. alphanumeric and hyphens only).
 - **Use parameterised queries** when looking up keys by `kid` in a database to prevent SQL injection.
 - **Never read key material from user-controlled file paths** — store keys in a secure key store and use `kid` only as an opaque identifier mapped server-side to a known key.
+- **Never pass `kid` to a shell command** — if key lookup requires an external process, use an allowlist of key IDs and pass the resolved path as an argument, never build a shell string from `kid`.
+- **Escape LDAP filter metacharacters** in the `kid` value (or use a parameterised LDAP filter API) before it is interpolated into a search filter.
 - **Hard-code or allowlist permitted `kid` values** where possible.

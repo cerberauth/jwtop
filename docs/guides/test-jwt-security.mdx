@@ -117,6 +117,14 @@ jwtop exploit kidinjection --mode sql $TOKEN
 
 # Path traversal variant
 jwtop exploit kidinjection --mode path $TOKEN
+
+# Command injection variant (targets servers that shell out using kid)
+jwtop exploit kidinjection --mode command $TOKEN
+jwtop exploit kidinjection --mode command --all $TOKEN  # every shell payload variant
+
+# LDAP injection variant (targets servers that use kid in an LDAP lookup)
+jwtop exploit kidinjection --mode ldap $TOKEN
+jwtop exploit kidinjection --mode ldap --all $TOKEN  # every LDAP payload variant
 ```
 
 **JWK header injection (self-signed key, CVE-2018-0114):**
