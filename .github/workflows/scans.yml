@@ -163,6 +163,52 @@ jobs:
         if: ${{ always() }}
         run: docker stop $(docker ps -q --filter ancestor=ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest)
 
+  run-jwt-crack-external-tools:
+    name: JWT Crack - External Tools (john/hashcat)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install hashcat and a CPU OpenCL runtime
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y hashcat pocl-opencl-icd
+
+      - name: Install john the ripper (jumbo build, via snap)
+        run: |
+          # The Debian/Ubuntu "john" apt package is core-only and lacks the
+          # HMAC-SHA256/384/512 formats this feature relies on; jumbo (via
+          # snap, which also provides the plain "john" command jwtop looks
+          # for on PATH) is required. This snap installs under strict
+          # confinement (home + removable-media plugs only, no /tmp access) —
+          # jwtop accounts for that by keeping its john temp files under
+          # $HOME. /snap/bin is on the default runner PATH.
+          sudo snap install john-the-ripper
+
+      - name: Verify tool capabilities
+        run: |
+          john --list=formats | grep -i hmac
+          hashcat -I | grep -qi 'CPU'
+
+      - name: Setup Go environment
+        uses: actions/setup-go@v7
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Run external-tool integration tests
+        run: go test -tags=integration ./jwt/exploit/external/...
+
+      - name: Create weak-secret token
+        id: create-weak
+        run: echo "jwt=$(go run main.go create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
+
+      - name: Offline crack via john
+        run: go run main.go crack ${{ steps.create-weak.outputs.jwt }} --john --sqa-opt-out
+
+      - name: Offline crack via hashcat
+        run: go run main.go crack ${{ steps.create-weak.outputs.jwt }} --hashcat --sqa-opt-out
+
   run-jwt-hmac-confusion-scan:
     name: JWT Crack - jwt-hmac-confusion
     runs-on: ubuntu-latest

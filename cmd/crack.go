@@ -7,6 +7,7 @@ import (
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/harnessx/reporters"
 	"github.com/cerberauth/jwtop/jwt/crack"
+	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	"github.com/cerberauth/jwtop/jwt/exploit"
 	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
 	"github.com/cerberauth/x/reportx/harnessreport"
@@ -29,6 +30,7 @@ var (
 	crackTokenIn        string
 	crackTokenName      string
 	crackTokenPrefix    string
+	crackExternalTools  externalToolFlags
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -74,9 +76,14 @@ Use only against systems you own or have explicit written permission to test.`,
 		successCounter, _ := telemetryMeter.Int64Counter("crack.success.counter")
 		notFoundCounter, _ := telemetryMeter.Int64Counter("crack.notfound.counter")
 		errorCounter, _ := telemetryMeter.Int64Counter("crack.error.counter")
+		toolDetectedCounter, _ := telemetryMeter.Int64Counter("crack.tool.detected.counter")
+		externalCounters := buildToolOutcomeCounters(telemetryMeter, "crack.weaksecret")
+		tracer := otel.Tracer(crackOtelName)
 
 		ctx := cmd.Context()
 		tokenString := args[0]
+
+		reportExternalToolAvailability(ctx, toolDetectedCounter, crackExternalTools)
 
 		var pemData []byte
 		if crackKey != "" {
@@ -132,21 +139,25 @@ Use only against systems you own or have explicit written permission to test.`,
 			BaselineCheckID: crack.BaselineCheckID,
 		})
 
+		var externalEvents []checkbase.ExternalToolEvent
 		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
-			URL:            crackURL,
-			ExpectedStatus: crackExpectedStatus,
-			PublicKeyPEM:   pemData,
-			Candidates:     candidates,
-			Workers:        crackWorkers,
-			Reporters:      []harnessx.Reporter{otelReporter, reportxReporter},
-			KidSQLTable:    crackKidSQLTable,
-			KidPath:        crackKidPath,
+			URL:                crackURL,
+			ExpectedStatus:     crackExpectedStatus,
+			PublicKeyPEM:       pemData,
+			Candidates:         candidates,
+			Workers:            crackWorkers,
+			Reporters:          []harnessx.Reporter{otelReporter, reportxReporter},
+			KidSQLTable:        crackKidSQLTable,
+			KidPath:            crackKidPath,
+			ExternalTools:      crackExternalTools.toOptions(),
+			ExternalToolEvents: &externalEvents,
 			TokenLocation: crack.TokenLocation{
 				In:     crackTokenIn,
 				Name:   crackTokenName,
 				Prefix: crackTokenPrefix,
 			},
 		})
+		recordExternalToolEvents(ctx, tracer, externalCounters, "crack.weaksecret", externalEvents)
 		if err != nil {
 			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "probe error")))
 			return fmt.Errorf("probing token: %w", err)
@@ -191,6 +202,7 @@ func init() {
 	crackCmd.Flags().StringVar(&crackTokenIn, "token-in", "", "Where to place the exploited JWT: header, cookie, query, or body (default \"header\")")
 	crackCmd.Flags().StringVar(&crackTokenName, "token-name", "", "Header/cookie/query/form-field name for the JWT (default \"Authorization\" for header, \"token\" otherwise)")
 	crackCmd.Flags().StringVar(&crackTokenPrefix, "token-prefix", "", "Value prefix before the token, e.g. \"Bearer \" (default \"Bearer \" only for the default Authorization header)")
+	registerExternalToolFlags(crackCmd, &crackExternalTools)
 	cobrareportx.RegisterFormatFlags(crackCmd)
 	cobrareportx.RegisterTransportFlags(crackCmd)
 }

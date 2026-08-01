@@ -29,17 +29,23 @@ type TokenLocation = checkbase.TokenLocation
 
 const BaselineCheckID = checkbase.CheckIDBaseline
 
+type ExternalToolOptions = checkbase.ExternalToolOptions
+
+type ExternalToolEvent = checkbase.ExternalToolEvent
+
 type ProbeOptions struct {
-	URL            string
-	ExpectedStatus int
-	PublicKeyPEM   []byte
-	Candidates     []string
-	Workers        int
-	Probe          *probe.Probe
-	Reporters      []harnessx.Reporter
-	KidSQLTable    string
-	KidPath        string
-	TokenLocation  TokenLocation
+	URL                string
+	ExpectedStatus     int
+	PublicKeyPEM       []byte
+	Candidates         []string
+	Workers            int
+	Probe              *probe.Probe
+	Reporters          []harnessx.Reporter
+	KidSQLTable        string
+	KidPath            string
+	TokenLocation      TokenLocation
+	ExternalTools      ExternalToolOptions
+	ExternalToolEvents *[]ExternalToolEvent
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -102,7 +108,9 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
 		Candidates: opts.Candidates, Workers: opts.Workers, ExpectedStatus: opts.ExpectedStatus,
 		Offline: offline, KidSQLTable: opts.KidSQLTable, KidPath: opts.KidPath,
-		TokenLocation: opts.TokenLocation.WithDefaults(),
+		TokenLocation:      opts.TokenLocation.WithDefaults(),
+		ExternalTools:      opts.ExternalTools,
+		ExternalToolEvents: opts.ExternalToolEvents,
 	}
 
 	checks, defs := buildChecks()

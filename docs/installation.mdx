@@ -69,6 +69,10 @@ Verify the installation:
 jwtop version
 ```
 
+## Optional: external cracking tools
+
+`jwtop crack`/`jwtop exploit weaksecret` can optionally fall back to the external `john` and `hashcat` tools for HMAC secret cracking on large wordlists. Neither is a jwtop dependency — install them only if you plan to use `--john`/`--hashcat`. See [crack &raquo; External cracking tools](./reference/cli/crack/#external-cracking-tools) for install commands and important caveats (the Debian/Ubuntu `john` package lacks the required formats; `hashcat` needs a compute backend).
+
 ## GitHub Actions
 
 To use `jwtop` in a GitHub Actions workflow, see the [GitHub Actions guide](./github-actions/).
