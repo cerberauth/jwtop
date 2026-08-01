@@ -36,6 +36,37 @@ jwtop crack <token> --url <url> [flags]
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
+| `--john` | Fall back to the external `john` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--john-path` | Path to the `john` binary — passing this implies `--john`; resolved via `PATH` when omitted |
+| `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`; resolved via `PATH` when omitted |
+| `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+
+## External cracking tools
+
+`--john`/`--hashcat` are optional and off by default — the built-in dictionary attack (a pure-Go, in-process brute force) always runs first. If it doesn't find the secret and one of these flags is set, jwtop shells out to the corresponding tool with the same candidate list.
+
+- **Auto-detection**: on every invocation, jwtop checks whether `john`/`hashcat` are on `PATH`. If a tool is found but not enabled (neither its bool flag nor its `-path` flag was passed), a one-line advisory is printed to stderr, e.g. `[i] hashcat detected on PATH — pass --hashcat (or --hashcat-path) to use it as a fallback for faster HMAC secret cracking`.
+- **Timeouts**: if a tool doesn't finish within `--crack-timeout` (default `5m`), it's stopped and jwtop prints an explicit warning — `[!] john timed out after 5m0s without finding the secret — try a larger --crack-timeout or a smaller wordlist` — rather than silently reporting "not found".
+- **Telemetry**: usage of each tool (success/not-found/error) and detection events are reported the same way as every other check, plus a span per invocation recording exit code, tool version, format/mode, candidate count, and (for hashcat) a summary of the compute backend — never the token or the cracked secret.
+- **Docker**: the published image is `distroless` (no shell, no package manager) — `--john`/`--hashcat` cannot work inside it. Run jwtop on the host, or build a custom image with these tools installed.
+- **Installing the tools** (Debian/Ubuntu):
+
+  ```sh
+  # hashcat + a CPU OpenCL runtime (hashcat errors "No devices found" on
+  # machines without a GPU/vendor OpenCL driver otherwise)
+  sudo apt update
+  sudo apt install hashcat pocl-opencl-icd
+  hashcat -I   # confirm a usable device is listed
+
+  # john the ripper — `apt install john` alone is NOT enough: that's John
+  # "core" 1.8.0, which lacks the HMAC-SHA256/384/512 formats this feature
+  # needs. Install the community "jumbo" build via snap instead:
+  sudo snap install john-the-ripper
+  john --list=formats | grep -i hmac   # confirm HMAC formats are present
+  ```
+
+  The snap package installs under strict confinement (only the `home` and `removable-media` plugs are granted — no `/tmp` access), so jwtop keeps john's temporary working files under `$HOME` rather than the system temp directory to stay compatible with it.
 
 ## Offline mode
 
@@ -121,6 +152,12 @@ jwtop crack $TOKEN
 ```sh
 jwtop crack $TOKEN --wordlist /path/to/secrets.txt
 jwtop crack $TOKEN --wordlist /path/to/secrets.txt --secret mysecret --secret topsecret
+```
+
+**Offline — fall back to hashcat on a large wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/rockyou.txt --hashcat --crack-timeout 30m
 ```
 
 **Online — probe with the built-in secret dictionary**

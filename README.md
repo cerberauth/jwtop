@@ -35,7 +35,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 | Verify signature (HMAC, RSA, ECDSA, JWKS) | ✓ | ✓ |
 | Create and sign new tokens | ✓ | ✓ |
 | Re-sign existing tokens | ✓ | ✓ |
-| Crack HMAC secret (dictionary attack) | ✓ | ✓ |
+| Crack HMAC secret (dictionary attack, optional john/hashcat fallback) | ✓ | ✓ |
 | Probe server for JWT vulnerabilities | ✓ | ✓ |
 | alg=none bypass | ✓ | ✓ |
 | Blank secret | ✓ | ✓ |
@@ -111,6 +111,8 @@ docker run --rm -v "$(pwd)":/data ghcr.io/cerberauth/jwtop \
 ```
 
 See the [Docker guide](./docs/docker.mdx) for Compose usage, network joining to probe a co-located server, and building the dev image from source.
+
+> `--john`/`--hashcat` (see [External cracking tools](#external-cracking-tools-john--hashcat)) need the respective binaries on the host and don't work inside this distroless image — run jwtop outside Docker, or build a custom image with them installed, to use those flags.
 
 ---
 
@@ -270,6 +272,13 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
+| `--john` | Fall back to the external `john` (john-the-ripper) tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--john-path` | Path to the `john` binary — passing this implies `--john`, so PATH resolution is only needed when this is omitted |
+| `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`, so PATH resolution is only needed when this is omitted |
+| `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+
+`--john`/`--hashcat` are entirely optional and off by default; when either tool is detected on `PATH` but not enabled, jwtop prints a one-line suggestion to stderr. See [External cracking tools](#external-cracking-tools-john--hashcat) below.
 
 **Offline checks** (cryptographic proof, no server needed):
 
@@ -311,6 +320,37 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --t
 ```
 
 Exits `0` when at least one vulnerability was found, `1` when none were.
+
+#### External cracking tools (john / hashcat)
+
+The built-in dictionary attack is a pure-Go, in-process brute force — fine for the embedded wordlist, but no match for `john`/`hashcat` on large wordlists. Both are optional and off by default:
+
+```sh
+# Fall back to john if the built-in attack misses
+jwtop crack $TOKEN --wordlist /path/to/rockyou.txt --john
+
+# Fall back to hashcat, with a custom binary path and a longer timeout
+jwtop crack $TOKEN --wordlist /path/to/rockyou.txt --hashcat-path /opt/hashcat/hashcat.bin --crack-timeout 30m
+```
+
+- jwtop auto-detects whether `john`/`hashcat` are installed on `PATH` and, if a tool is available but neither its bool flag nor its `-path` flag was passed, prints `[i] john detected on PATH — pass --john (or --john-path) ...` (or the hashcat equivalent) to stderr.
+- If a tool is enabled but doesn't finish before `--crack-timeout`, it's stopped and jwtop prints `[!] <tool> timed out after <duration> without finding the secret — try a larger --crack-timeout or a smaller wordlist` rather than silently reporting "not found".
+- **Docker**: the published image is `distroless` (no shell, no package manager), so `--john`/`--hashcat` cannot work inside it — run jwtop on the host, or build a custom image with these tools installed, to use them.
+- **Installing the tools** (Debian/Ubuntu):
+  ```sh
+  # hashcat + a CPU OpenCL runtime (hashcat errors "No devices found" without
+  # one on machines with no GPU/vendor OpenCL driver)
+  sudo apt update
+  sudo apt install hashcat pocl-opencl-icd
+  hashcat -I   # confirm a usable device is listed
+
+  # john the ripper: `apt install john` alone is NOT enough — that's John
+  # "core" 1.8.0, which lacks the HMAC-SHA256/384/512 formats this feature
+  # needs. Install the community "jumbo" build via snap instead:
+  sudo snap install john-the-ripper
+  john --list=formats | grep -i hmac   # confirm HMAC formats are present
+  ```
+  The snap package installs under strict confinement (only `home` and `removable-media` are granted — no `/tmp` access), so jwtop keeps john's working files under `$HOME` rather than the system temp directory to remain compatible with it.
 
 ---
 
@@ -371,6 +411,7 @@ jwtop exploit psychicsig $TOKEN
 jwtop exploit weaksecret $TOKEN                                   # built-in wordlist
 jwtop exploit weaksecret $TOKEN --secret mysecret --secret s3cr3t # explicit guesses
 jwtop exploit weaksecret $TOKEN --wordlist /path/to/secrets.txt   # custom wordlist
+jwtop exploit weaksecret $TOKEN --wordlist /path/to/rockyou.txt --hashcat  # fall back to hashcat if the built-in attack misses
 ```
 
 | Flag | Description |
@@ -378,8 +419,13 @@ jwtop exploit weaksecret $TOKEN --wordlist /path/to/secrets.txt   # custom wordl
 | `--wordlist` | Newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret (repeatable) |
 | `--workers` | Concurrent workers (default `8`) |
+| `--john` | Fall back to the external `john` tool if the built-in attack doesn't find the secret |
+| `--john-path` | Path to the `john` binary — passing this implies `--john` |
+| `--hashcat` | Fall back to the external `hashcat` tool if the built-in attack doesn't find the secret |
+| `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat` |
+| `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
 
-Prints the recovered secret on success (exit `0`), exits `1` when not found.
+Prints the recovered secret on success (exit `0`), exits `1` when not found. `--john`/`--hashcat` behave exactly as in [`crack`](#external-cracking-tools-john--hashcat): optional, off by default, auto-detected with a stderr advisory when available but unused, and installable per the instructions there.
 
 **kidinjection** — manipulate the `kid` header and re-sign.
 
