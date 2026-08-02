@@ -2,6 +2,9 @@ package crack
 
 import (
 	"context"
+	"net/http"
+	"sync"
+	"time"
 
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/harnessx/probe"
@@ -39,6 +42,7 @@ type ProbeOptions struct {
 	PublicKeyPEM       []byte
 	Candidates         []string
 	Workers            int
+	Delay              time.Duration
 	Probe              *probe.Probe
 	Reporters          []harnessx.Reporter
 	KidSQLTable        string
@@ -102,7 +106,11 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 	offline := opts.URL == ""
 	p := opts.Probe
 	if p == nil && !offline {
-		p = probe.New()
+		var probeOpts []probe.Option
+		if opts.Delay > 0 {
+			probeOpts = append(probeOpts, probe.WithTransport(&delayTransport{delay: opts.Delay, base: http.DefaultTransport}))
+		}
+		p = probe.New(probeOpts...)
 	}
 	pctx := &checkbase.ProbeCtx{
 		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
@@ -152,4 +160,48 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		}
 	}
 	return results, baselineStatus, nil
+}
+
+// delayTransport enforces a minimum spacing of delay between outgoing
+// requests, so probe requests are spread out to avoid tripping target rate
+// limits or WAFs. Checks run concurrently, so spacing is serialized across
+// all callers sharing the transport rather than applied independently per
+// request.
+type delayTransport struct {
+	delay time.Duration
+	base  http.RoundTripper
+
+	mu   sync.Mutex
+	next time.Time
+}
+
+func (t *delayTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := t.wait(req.Context()); err != nil {
+		return nil, err
+	}
+	return t.base.RoundTrip(req)
+}
+
+func (t *delayTransport) wait(ctx context.Context) error {
+	t.mu.Lock()
+	now := time.Now()
+	start := now
+	if t.next.After(start) {
+		start = t.next
+	}
+	t.next = start.Add(t.delay)
+	t.mu.Unlock()
+
+	d := start.Sub(now)
+	if d <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(d)
+	defer timer.Stop()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
