@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/harnessx/reporters"
@@ -25,6 +26,7 @@ var (
 	crackWordlist       string
 	crackSecrets        []string
 	crackWorkers        int
+	crackDelay          time.Duration
 	crackKidSQLTable    string
 	crackKidPath        string
 	crackTokenIn        string
@@ -146,6 +148,7 @@ Use only against systems you own or have explicit written permission to test.`,
 			PublicKeyPEM:       pemData,
 			Candidates:         candidates,
 			Workers:            crackWorkers,
+			Delay:              crackDelay,
 			Reporters:          []harnessx.Reporter{otelReporter, reportxReporter},
 			KidSQLTable:        crackKidSQLTable,
 			KidPath:            crackKidPath,
@@ -197,6 +200,7 @@ func init() {
 	crackCmd.Flags().StringVar(&crackWordlist, "wordlist", "", "Path to newline-delimited wordlist for secret brute-force")
 	crackCmd.Flags().StringArrayVar(&crackSecrets, "secret", nil, "Explicit candidate secret for brute-force (repeatable)")
 	crackCmd.Flags().IntVar(&crackWorkers, "workers", 8, "Concurrent workers for secret brute-force")
+	crackCmd.Flags().DurationVar(&crackDelay, "delay", 0, "Delay between probe requests to the target URL, e.g. \"200ms\" (default: no delay)")
 	crackCmd.Flags().StringVar(&crackKidSQLTable, "kid-sql-table", "", "Table name for the kid SQL injection payload (default \""+exploit.DefaultKidSQLTable+"\")")
 	crackCmd.Flags().StringVar(&crackKidPath, "kid-path", "", "File path for the kid path traversal payload (default \""+exploit.DefaultKidPathTraversalPayload+"\")")
 	crackCmd.Flags().StringVar(&crackTokenIn, "token-in", "", "Where to place the exploited JWT: header, cookie, query, or body (default \"header\")")

@@ -256,7 +256,7 @@ Analyse a JWT for vulnerabilities. Without `--url` the analysis is **offline** (
 jwtop crack <token> [--wordlist <file>] [--secret <s>...] [--workers <n>]
 
 # Online — probe a live server
-jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wordlist <file>] [--secret <s>...] [--workers <n>]
+jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wordlist <file>] [--secret <s>...] [--workers <n>] [--delay <duration>]
 ```
 
 | Flag | Description |
@@ -267,6 +267,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--wordlist` | Path to a newline-delimited file of candidate secrets |
 | `--secret` | Explicit candidate secret (repeatable) |
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
+| `--delay` | Delay between probe requests to the target URL, e.g. `200ms` (default: no delay) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |

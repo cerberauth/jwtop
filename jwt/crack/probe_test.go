@@ -14,6 +14,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
@@ -545,6 +546,38 @@ func TestProbeAll_CancelledContext_ReturnsError(t *testing.T) {
 	token := makeHS256Token(t, "secret")
 	_, _, err := crack.ProbeAll(ctx, token, crack.ProbeOptions{URL: srv.URL})
 	assert.Error(t, err, "cancelled context should propagate as an error")
+}
+
+func TestProbeAll_Delay_SpacesOutProbeRequests(t *testing.T) {
+	srv, reqs := newRecordingServer(401)
+	defer srv.Close()
+
+	const delay = 30 * time.Millisecond
+	token := makeHS256Token(t, "secret")
+	start := time.Now()
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL, Delay: delay})
+	require.NoError(t, err)
+	elapsed := time.Since(start)
+
+	n := len(reqs())
+	require.Greater(t, n, 1, "expected more than one probe request")
+	assert.GreaterOrEqual(t, elapsed, time.Duration(n-1)*delay)
+}
+
+func TestProbeAll_Delay_RespectsContextCancellation(t *testing.T) {
+	srv := staticServer(401)
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+
+	token := makeHS256Token(t, "secret")
+	start := time.Now()
+	_, _, err := crack.ProbeAll(ctx, token, crack.ProbeOptions{URL: srv.URL, Delay: 5 * time.Second})
+	elapsed := time.Since(start)
+
+	assert.Error(t, err, "context deadline should cut the delay short")
+	assert.Less(t, elapsed, 2*time.Second, "delay transport should respect context cancellation instead of sleeping the full delay")
 }
 
 // Offline mode tests (no URL provided).
