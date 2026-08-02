@@ -8,7 +8,6 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/cerberauth/jwtop/ci.yml?branch=main&label=build&style=for-the-badge)](https://github.com/cerberauth/jwtop/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cerberauth/jwtop?sort=semver&style=for-the-badge)](https://github.com/cerberauth/jwtop/releases)
 [![Coverage](https://img.shields.io/codecov/c/gh/cerberauth/jwtop?token=BD1WPXJDAW&style=for-the-badge)](https://codecov.io/gh/cerberauth/jwtop)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cerberauth/jwtop?style=for-the-badge)](https://goreportcard.com/report/github.com/cerberauth/jwtop)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://godoc.org/github.com/cerberauth/jwtop)
 [![Stars](https://img.shields.io/github/stars/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop)
 [![License](https://img.shields.io/github/license/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop/blob/main/LICENSE)
