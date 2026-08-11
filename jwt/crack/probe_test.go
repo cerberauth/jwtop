@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cerberauth/jwtop/jwt/crack"
-	"github.com/cerberauth/jwtop/jwt/exploit"
 )
 
 func makeHS256Token(t *testing.T, secret string) string {
@@ -141,16 +140,6 @@ func findResult(results []crack.ProbeResult, name string) (crack.ProbeResult, bo
 	return crack.ProbeResult{}, false
 }
 
-func findResultPrefix(results []crack.ProbeResult, prefix string) []crack.ProbeResult {
-	var out []crack.ProbeResult
-	for _, r := range results {
-		if strings.HasPrefix(r.Name, prefix) {
-			out = append(out, r)
-		}
-	}
-	return out
-}
-
 func TestProbeAll_AlreadyRejectedToken_AutoDetectsBaseline(t *testing.T) {
 	srv := staticServer(401)
 	defer srv.Close()
@@ -250,14 +239,13 @@ func TestProbeAll_WithExpectedStatus_SkipsAutoDetect(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, nullsig.Vulnerable, "nullsig probe should be vulnerable when server returns 200 vs baseline 401")
 
-	algNone := findResultPrefix(results, "Algorithm None (")
-	for _, ar := range algNone {
-		assert.False(t, ar.Skipped, "algnone should still be probed for a non-none input token")
-		assert.True(t, ar.Vulnerable, "algnone probe should be vulnerable when server returns 200 vs baseline 401")
-	}
+	algNone, ok := findResult(results, "Algorithm None")
+	require.True(t, ok)
+	assert.False(t, algNone.Skipped, "algnone should still be probed for a non-none input token")
+	assert.True(t, algNone.Vulnerable, "algnone probe should be vulnerable when server returns 200 vs baseline 401")
 }
 
-func TestProbeAll_AlgNone_ProducesOneResultPerVariant(t *testing.T) {
+func TestProbeAll_AlgNone_ProducesOneResult(t *testing.T) {
 	token := makeHS256Token(t, "secret")
 	srv := tokenAwareServer(token, 200, 401)
 	defer srv.Close()
@@ -265,8 +253,13 @@ func TestProbeAll_AlgNone_ProducesOneResultPerVariant(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	algNone := findResultPrefix(results, "Algorithm None (")
-	assert.Len(t, algNone, len(exploit.AlgNoneVariants))
+	count := 0
+	for _, r := range results {
+		if r.Name == "Algorithm None" {
+			count++
+		}
+	}
+	assert.Equal(t, 1, count, "alg_none variants should be merged into a single report line")
 }
 
 func TestProbeAll_AlgNone_NotVulnerable_When401(t *testing.T) {
@@ -277,10 +270,10 @@ func TestProbeAll_AlgNone_NotVulnerable_When401(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
 	require.NoError(t, err)
 
-	for _, r := range findResultPrefix(results, "Algorithm None (") {
-		assert.False(t, r.Vulnerable, "algnone %s should not be vulnerable when server returns 401", r.Name)
-		assert.Nil(t, r.Err)
-	}
+	r, ok := findResult(results, "Algorithm None")
+	require.True(t, ok)
+	assert.False(t, r.Vulnerable, "algnone should not be vulnerable when server returns 401 for every variant")
+	assert.Nil(t, r.Err)
 }
 
 func TestProbeAll_BlankSecret_ProbedForHMAC(t *testing.T) {
@@ -510,8 +503,7 @@ func TestProbeAll_HMAC_ResultNames(t *testing.T) {
 	require.Contains(t, names, "KID Path Traversal")
 	require.Contains(t, names, "Weak Secret")
 
-	algNone := findResultPrefix(results, "Algorithm None (")
-	assert.Len(t, algNone, len(exploit.AlgNoneVariants))
+	require.Contains(t, names, "Algorithm None")
 }
 
 func TestProbeAll_Asymmetric_ResultNames(t *testing.T) {
@@ -610,32 +602,24 @@ func TestProbeAll_Offline_AlgNone_DetectsExistingAlgNone(t *testing.T) {
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
 	require.NoError(t, err)
 
-	r, ok := findResult(results, "Algorithm None (none)")
+	r, ok := findResult(results, "Algorithm None")
 	require.True(t, ok)
 	assert.False(t, r.Skipped, "already-none is reported as a finding, not skipped")
 	assert.True(t, r.Vulnerable, "token already using alg=none is itself the vulnerability")
 }
 
-func TestProbeAll_Offline_AlgNone_NotVulnerable_ForNormalToken(t *testing.T) {
-	token := makeHS256Token(t, "secret")
-	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
-	require.NoError(t, err)
-
-	r, ok := findResult(results, "Algorithm None (none)")
-	require.True(t, ok)
-	assert.False(t, r.Vulnerable, "variant 'none' should not be vulnerable for HS256 token offline")
-}
-
-func TestProbeAll_Offline_AlgNone_AllVariants_Skipped(t *testing.T) {
+func TestProbeAll_Offline_AlgNone_Skipped_ForNormalToken(t *testing.T) {
 	token := makeHS256Token(t, "secret")
 	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{})
 	require.NoError(t, err)
 
 	// algnone requires a live server to demonstrate the manipulation exploit
-	for _, r := range findResultPrefix(results, "Algorithm None (") {
-		assert.True(t, r.Skipped, "variant %s should be skipped offline", r.Name)
-		assert.Contains(t, r.SkipReason, "requires live server")
-	}
+	// unless the token already uses alg=none.
+	r, ok := findResult(results, "Algorithm None")
+	require.True(t, ok)
+	assert.True(t, r.Skipped, "algnone should be skipped offline for a non-none token")
+	assert.Contains(t, r.SkipReason, "requires live server")
+	assert.False(t, r.Vulnerable)
 }
 
 func TestProbeAll_Offline_BlankSecret_VulnerableWhenSignedWithEmptyKey(t *testing.T) {
