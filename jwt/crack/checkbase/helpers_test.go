@@ -66,7 +66,7 @@ func TestSendProbe_VulnerableWhenStatusDiffersFromBaseline(t *testing.T) {
 	srv200 := httptest.NewServer(assertHandler(200))
 	defer srv200.Close()
 
-	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, 401))
+	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 401}))
 	res, err := checkbase.SendProbe(context.Background(), probe.New(), srv200.URL, "tok", checkbase.DefaultTokenLocation(), store)
 	require.NoError(t, err)
 	pr, ok := harnessx.DataAs[checkbase.ProbeResult](res)
@@ -80,7 +80,7 @@ func TestSendProbe_NotVulnerableWhenStatusMatchesBaselineExact(t *testing.T) {
 	srv := httptest.NewServer(assertHandler(401))
 	defer srv.Close()
 
-	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, 401))
+	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 401}))
 	res, err := checkbase.SendProbe(context.Background(), probe.New(), srv.URL, "tok", checkbase.DefaultTokenLocation(), store)
 	require.NoError(t, err)
 	pr, ok := harnessx.DataAs[checkbase.ProbeResult](res)
@@ -98,7 +98,7 @@ func TestSendProbe_ClientDoError_ReturnsError(t *testing.T) {
 	srv := httptest.NewServer(assertHandler(200))
 	srv.Close() // closed server: connection refused
 
-	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, 200))
+	store := harnessx.NewStaticResultStore(harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 200}))
 	_, err := checkbase.SendProbe(context.Background(), probe.New(), srv.URL, "tok", checkbase.DefaultTokenLocation(), store)
 	assert.Error(t, err)
 }

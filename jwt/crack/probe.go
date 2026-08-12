@@ -55,11 +55,14 @@ type ProbeOptions struct {
 // buildChecks returns the full set of registered checks along with a
 // per-check metadata map (name plus CVSS/CWE/OWASP scoring) keyed by
 // CheckID, since harnessx.Check itself carries no scoring metadata.
-func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
-	checks := make([]harnessx.Check, 0, len(algnone.Checks)+10)
-	checks = append(checks, baseline.Check, noverification.Check)
-	checks = append(checks, algnone.Checks...)
-	checks = append(checks,
+// BuildChecks returns the full jwtop JWT check registry (baseline + every
+// crack check) and their metadata, in dependency order. Exported so callers
+// embedding jwtop's checks in their own harnessx.Engine (rather than going
+// through ProbeAll) build the exact same check list ProbeAll uses.
+func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
+	checks := []harnessx.Check{
+		baseline.Check, noverification.Check,
+		algnone.Check,
 		blanksecret.Check,
 		nullsignature.Check,
 		hmacconfusion.Check,
@@ -68,12 +71,10 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		kidpathtraversal.Check,
 		jwkinjection.Check,
 		weaksecret.Check,
-	)
+	}
 
 	defs := make(map[harnessx.CheckID]CheckDef, len(checks))
-	for _, c := range algnone.Checks {
-		defs[c.ID] = algnone.Def
-	}
+	defs[algnone.Check.ID] = algnone.Def
 	defs[noverification.Check.ID] = noverification.Def
 	defs[blanksecret.Check.ID] = blanksecret.Def
 	defs[nullsignature.Check.ID] = nullsignature.Def
@@ -95,7 +96,7 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 // description) keyed by CheckID, for callers that need to enrich results
 // outside of ProbeAll (e.g. a harnessx.Reporter).
 func CheckDefs() map[harnessx.CheckID]CheckDef {
-	_, defs := buildChecks()
+	_, defs := BuildChecks()
 	return defs
 }
 
@@ -121,7 +122,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		ExternalToolEvents: opts.ExternalToolEvents,
 	}
 
-	checks, defs := buildChecks()
+	checks, defs := BuildChecks()
 
 	var engineOpts []harnessx.Option
 	if len(opts.Reporters) > 0 {
@@ -143,10 +144,16 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 			if r.Err != nil {
 				return nil, 0, r.Err
 			}
-			baselineStatus, _ = harnessx.DataAs[int](r)
+			baselineSnap, _ := harnessx.DataAs[harnessx.Snapshot](r)
+			baselineStatus = baselineSnap.StatusCode
 			continue
 		}
 		if pr, ok := harnessx.DataAs[ProbeResult](r); ok {
+			if pr.Name == "" {
+				pr.Name = defs[r.CheckID].Name
+			}
+			results = append(results, pr)
+		} else if pr, ok := checkbase.ResolveVariantResult(r.Attempts); ok {
 			if pr.Name == "" {
 				pr.Name = defs[r.CheckID].Name
 			}

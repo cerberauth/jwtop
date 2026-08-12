@@ -29,7 +29,7 @@ func TestCheck_Skip_RunsWhenOnline(t *testing.T) {
 
 func TestCheck_Run_VulnerableWhenBaselineBelow400(t *testing.T) {
 	store := harnessx.NewStaticResultStore(
-		harnessx.ResultData(checkbase.CheckIDBaseline, 200),
+		harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 200}),
 	)
 	target := harnessx.Target{Data: &checkbase.ProbeCtx{InvalidToken: "invalid.token.here"}}
 
@@ -42,7 +42,7 @@ func TestCheck_Run_VulnerableWhenBaselineBelow400(t *testing.T) {
 
 func TestCheck_Run_NotVulnerableWhenBaseline401(t *testing.T) {
 	store := harnessx.NewStaticResultStore(
-		harnessx.ResultData(checkbase.CheckIDBaseline, 401),
+		harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 401}),
 	)
 	target := harnessx.Target{Data: &checkbase.ProbeCtx{InvalidToken: "invalid.token.here"}}
 
