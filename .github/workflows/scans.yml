@@ -54,6 +54,9 @@ jobs:
       - name: Exploit jwkinjection
         run: go run main.go exploit jwkinjection ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
+      - name: Exploit jkuinjection
+        run: go run main.go exploit jkuinjection ${{ steps.create.outputs.jwt }} --url http://localhost:8089/jwks.json --sqa-opt-out
+
       - name: Generate RSA key pair
         run: |
           openssl genrsa -out private_key.pem 2048
@@ -80,6 +83,9 @@ jobs:
 
       - name: Exploit jwkinjection (ES256)
         run: go run main.go exploit jwkinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --sqa-opt-out
+
+      - name: Exploit jkuinjection (ES256)
+        run: go run main.go exploit jkuinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --url http://localhost:8089/jwks.json --sqa-opt-out
 
   run-jwt-crack-offline:
     name: JWT Crack - Offline Mode
@@ -117,6 +123,7 @@ jobs:
         include:
           - challenge: "jwt-alg-none-bypass"
           - challenge: "jwt-blank-secret"
+          - challenge: "jwt-jku-header-injection"
           - challenge: "jwt-jwk-header-injection"
           - challenge: "jwt-kid-path-traversal"
             crack_args: "--kid-path /dev/null"

@@ -13,6 +13,7 @@ import (
 	"github.com/cerberauth/jwtop/jwt/crack/checks/baseline"
 	blanksecret "github.com/cerberauth/jwtop/jwt/crack/checks/blank_secret"
 	hmacconfusion "github.com/cerberauth/jwtop/jwt/crack/checks/hmac_confusion"
+	jkuinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jku_injection"
 	jwkinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jwk_injection"
 	kidpathtraversal "github.com/cerberauth/jwtop/jwt/crack/checks/kid_path_traversal"
 	kidsqlinjection "github.com/cerberauth/jwtop/jwt/crack/checks/kid_sql_injection"
@@ -50,6 +51,7 @@ type ProbeOptions struct {
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
+	JKUServerAddr      string
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -70,6 +72,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		kidsqlinjection.Check,
 		kidpathtraversal.Check,
 		jwkinjection.Check,
+		jkuinjection.Check,
 		weaksecret.Check,
 	}
 
@@ -83,6 +86,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[kidsqlinjection.Check.ID] = kidsqlinjection.Def
 	defs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
 	defs[jwkinjection.Check.ID] = jwkinjection.Def
+	defs[jkuinjection.Check.ID] = jkuinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
 	for _, c := range checks {
 		def := defs[c.ID]
@@ -120,6 +124,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		TokenLocation:      opts.TokenLocation.WithDefaults(),
 		ExternalTools:      opts.ExternalTools,
 		ExternalToolEvents: opts.ExternalToolEvents,
+		JKUServerAddr:      opts.JKUServerAddr,
 	}
 
 	checks, defs := BuildChecks()

@@ -1,0 +1,14 @@
+id: "jkuinjection"
+name: "JKU Header Injection"
+description: "Tests if the server fetches the token's jku header URL and trusts whatever JWKS it returns, instead of validating jku against an allowlist of known key endpoints."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-jku-injection"
+tags:
+  - injection
+  - asymmetric
+depends_on:
+  - baseline
+cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
+cvss_score: 9.3
+cwe_id: "CWE-346"
+capec_id: "CAPEC-194"
+owasp: "API2:2023"
