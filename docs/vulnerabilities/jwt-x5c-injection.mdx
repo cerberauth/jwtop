@@ -1,0 +1,98 @@
+---
+title: JWT X5C Header Injection
+description: JWT X5C Header Injection occurs when a server trusts a certificate embedded directly in the token's `x5c` header instead of validating it against a pinned CA or certificate store, allowing attackers to forge tokens signed with their own self-signed certificate.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/295.html">CWE-295: Improper Certificate Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Attack Pattern</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/194.html">CAPEC-194: Fake the Source of Data</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+The `x5c` JWT header field (RFC 7515 §4.1.6) lets a token embed the X.509 certificate chain corresponding to the key used to sign it, base64-encoded (not base64url). It exists so a verifier can validate the signer's certificate against a trust store without a separate lookup. Servers that extract the public key from `x5c` and use it to verify the signature — without also validating the certificate chain up to a pinned, trusted root — will accept a certificate the attacker generated themselves.
+
+An attacker who controls this trust gap generates their own key pair and a throwaway self-signed certificate, embeds the certificate in the `x5c` header, and signs the token with the matching private key. Since the server extracts and uses the attacker-supplied certificate's public key to verify the attacker-supplied signature, the check always passes — for any claims the attacker chooses.
+
+This is the same class of trust failure as [JWK header injection](/docs/jwtop/vulnerabilities/jwt-jwk-injection) (CVE-2018-0114) — the difference is the key format: a raw JWK versus an X.509 certificate. It's also closely related to [X5U header injection](/docs/jwtop/vulnerabilities/jwt-x5u-injection), which fetches the certificate from an attacker-hosted URL instead of embedding it directly.
+
+## Example
+
+Here is a valid JWT signed with RS256 by the server's real key:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.<signature>
+```
+
+The attacker generates a fresh RSA key pair and a self-signed certificate, embeds the certificate in `x5c`, sets `kid` to match, and re-signs with the private half:
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "x5c-injection",
+  "x5c": ["MIIC5jCCAc6gAwIBAgIQ..."]
+}
+```
+
+A vulnerable server decodes the certificate out of `x5c`, extracts its public key, verifies the signature against it (which succeeds — the attacker signed with the matching private key), and treats the token as authentic — without checking whether the certificate chains up to a CA it actually trusts.
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT X5C Header Injection" vulnerability, you can use the `crack` command:
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+The check only runs against RSA/ECDSA (`RS*`/`ES*`/`PS*`) tokens — a server that trusts an embedded `x5c` certificate has no reason to do so for HMAC-signed tokens.
+
+To generate a token with a self-signed `x5c` certificate injected, use the `exploit x5cinjection` command:
+
+<Tabs>
+  <TabItem label="Generate a new key pair">
+```bash
+jwtop exploit x5cinjection [token]
+```
+  </TabItem>
+  <TabItem label="Choose the algorithm">
+```bash
+jwtop exploit x5cinjection [token] --alg ES256
+```
+  </TabItem>
+  <TabItem label="Re-sign with an existing key">
+```bash
+jwtop exploit x5cinjection [token] --key /path/to/private.pem
+```
+  </TabItem>
+</Tabs>
+
+## What is the impact?
+
+A successful X5C injection attack allows an attacker to forge a JWT that the server accepts as legitimate, with no knowledge of the server's actual signing key. This can lead to full authentication bypass, privilege escalation, or impersonation of any user in the system.
+
+## How to remediate?
+
+- **Never resolve the verification key from the token itself.** Ignore the `x5c` (and `jwk`, `jku`, `x5u`) header fields when verifying — look up the key server-side by `kid` against a pinned keyset or certificate store.
+- **If `x5c` support is unavoidable**, validate the full certificate chain up to a pinned, trusted root CA — never trust a certificate merely because it parses successfully or is internally self-consistent.
+- **Pin the expected algorithm and key(s) per issuer** so a token cannot dictate which key, algorithm family, or certificate verifies it.

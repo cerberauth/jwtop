@@ -21,6 +21,8 @@ import (
 	nullsignature "github.com/cerberauth/jwtop/jwt/crack/checks/null_signature"
 	psychicsignature "github.com/cerberauth/jwtop/jwt/crack/checks/psychic_signature"
 	weaksecret "github.com/cerberauth/jwtop/jwt/crack/checks/weak_secret"
+	x5cinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5c_injection"
+	x5uinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5u_injection"
 )
 
 type ProbeResult = checkbase.ProbeResult
@@ -52,6 +54,7 @@ type ProbeOptions struct {
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
 	JKUServerAddr      string
+	X5UServerAddr      string
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -73,6 +76,8 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		kidpathtraversal.Check,
 		jwkinjection.Check,
 		jkuinjection.Check,
+		x5cinjection.Check,
+		x5uinjection.Check,
 		weaksecret.Check,
 	}
 
@@ -87,6 +92,8 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
 	defs[jwkinjection.Check.ID] = jwkinjection.Def
 	defs[jkuinjection.Check.ID] = jkuinjection.Def
+	defs[x5cinjection.Check.ID] = x5cinjection.Def
+	defs[x5uinjection.Check.ID] = x5uinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
 	for _, c := range checks {
 		def := defs[c.ID]
@@ -125,6 +132,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		ExternalTools:      opts.ExternalTools,
 		ExternalToolEvents: opts.ExternalToolEvents,
 		JKUServerAddr:      opts.JKUServerAddr,
+		X5UServerAddr:      opts.X5UServerAddr,
 	}
 
 	checks, defs := BuildChecks()
