@@ -33,6 +33,7 @@ var (
 	crackTokenName      string
 	crackTokenPrefix    string
 	crackExternalTools  externalToolFlags
+	crackJKUServerAddr  string
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -66,6 +67,8 @@ Additional online-only techniques:
   hmacconfusion   re-sign using a public key as HMAC secret (requires --key)
   kidinjection    SQL injection and path traversal via the kid header
   jwkinjection    self-signed JWK embedded in the header (RSA/ECDSA only)
+  jkuinjection    jku header pointed at a locally-served JWKS (requires
+                  --jku-server-addr; RSA/ECDSA only)
 
 By default the exploited JWT is sent as "Authorization: Bearer <token>".
 Use --token-in/--token-name/--token-prefix to place it elsewhere, e.g. a
@@ -154,6 +157,7 @@ Use only against systems you own or have explicit written permission to test.`,
 			KidPath:            crackKidPath,
 			ExternalTools:      crackExternalTools.toOptions(),
 			ExternalToolEvents: &externalEvents,
+			JKUServerAddr:      crackJKUServerAddr,
 			TokenLocation: crack.TokenLocation{
 				In:     crackTokenIn,
 				Name:   crackTokenName,
@@ -206,6 +210,7 @@ func init() {
 	crackCmd.Flags().StringVar(&crackTokenIn, "token-in", "", "Where to place the exploited JWT: header, cookie, query, or body (default \"header\")")
 	crackCmd.Flags().StringVar(&crackTokenName, "token-name", "", "Header/cookie/query/form-field name for the JWT (default \"Authorization\" for header, \"token\" otherwise)")
 	crackCmd.Flags().StringVar(&crackTokenPrefix, "token-prefix", "", "Value prefix before the token, e.g. \"Bearer \" (default \"Bearer \" only for the default Authorization header)")
+	crackCmd.Flags().StringVar(&crackJKUServerAddr, "jku-server-addr", "", "Bind address for a local JWKS server used by the jkuinjection check, e.g. \"0.0.0.0:8089\" (must be reachable by the target; check is skipped if unset)")
 	registerExternalToolFlags(crackCmd, &crackExternalTools)
 	cobrareportx.RegisterFormatFlags(crackCmd)
 	cobrareportx.RegisterTransportFlags(crackCmd)

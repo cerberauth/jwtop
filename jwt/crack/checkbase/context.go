@@ -53,6 +53,7 @@ type ProbeCtx struct {
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
+	JKUServerAddr      string
 }
 
 // ExternalToolOptions controls whether the weak-secret check falls back to

