@@ -1,0 +1,101 @@
+---
+title: JWT X5U Header Injection
+description: JWT X5U Header Injection occurs when a server fetches the token's `x5u` header URL and trusts whatever certificate it returns instead of validating it against a pinned CA or certificate store, allowing attackers to forge tokens verified against their own hosted certificate.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/295.html">CWE-295: Improper Certificate Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Attack Pattern</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/194.html">CAPEC-194: Fake the Source of Data</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+The `x5u` JWT header field (RFC 7515 §4.1.5) tells the verifier where to fetch the X.509 certificate (or certificate chain) corresponding to the key used to sign the token. It exists so a verifier can dynamically resolve a signer's certificate by URL instead of storing it ahead of time. Servers that dereference `x5u` and use the fetched certificate's public key to verify the signature — without validating the certificate chain against a pinned, trusted root, and without restricting `x5u` to a known set of hosts — will fetch and trust a certificate from *any* URL an attacker supplies, including one the attacker controls.
+
+An attacker who controls this trust gap generates their own key pair and a throwaway self-signed certificate, hosts the certificate at a URL they control, points the token's `x5u` header at that URL, and signs the token with the matching private key. Since the server fetches and uses the attacker-supplied certificate to verify the attacker-supplied signature, the check always passes — for any claims the attacker chooses.
+
+This is the same class of trust failure as [JKU header injection](/docs/jwtop/vulnerabilities/jwt-jku-injection) — the difference is what's fetched: a JWKS document versus an X.509 certificate. It's also closely related to [X5C header injection](/docs/jwtop/vulnerabilities/jwt-x5c-injection), which embeds the certificate directly in the token instead of fetching it from a URL.
+
+## Example
+
+Here is a valid JWT signed with RS256 by the server's real key:
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.<signature>
+```
+
+The attacker generates a fresh RSA key pair, hosts a self-signed certificate at a URL they control, sets `x5u` (and `kid` to match), and re-signs with the private half:
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "x5u-injection",
+  "x5u": "https://attacker.example/cert.pem"
+}
+```
+
+A vulnerable server fetches `https://attacker.example/cert.pem`, extracts the public key out of it, verifies the signature against it (which succeeds — the attacker signed with the matching private key), and treats the token as authentic. Restricting `x5u` to `https` or requiring it to match the token's issuer host does not help if the attacker can host content on a permitted domain (e.g. via an open redirect, a shared CDN, or a subdomain takeover).
+
+## How to test?
+
+If you want to test if your server is vulnerable to the "JWT X5U Header Injection" vulnerability, use the `crack` command with `--x5u-server-addr` set to a bind address reachable by the target — jwtop spins up a throwaway local certificate server, points the forged token's `x5u` header at it, and probes the target:
+
+```bash
+jwtop crack [token] --url [url] --x5u-server-addr 0.0.0.0:8090
+```
+
+The bind address must be reachable by the server under test — use a public interface/port (or a tunnel such as `ngrok`) when testing a remote target rather than a loopback address. The check is skipped when `--x5u-server-addr` is omitted, and only runs against RSA/ECDSA (`RS*`/`ES*`/`PS*`) tokens — a server that trusts a fetched `x5u` certificate has no reason to do so for HMAC-signed tokens.
+
+To generate a standalone token with an `x5u` header pointed at a certificate URL you already control, use the `exploit x5uinjection` command:
+
+<Tabs>
+  <TabItem label="Generate a new key pair">
+```bash
+jwtop exploit x5uinjection [token] --url https://attacker.example/cert.pem
+```
+  </TabItem>
+  <TabItem label="Choose the algorithm">
+```bash
+jwtop exploit x5uinjection [token] --alg ES256 --url https://attacker.example/cert.pem
+```
+  </TabItem>
+  <TabItem label="Re-sign with an existing key">
+```bash
+jwtop exploit x5uinjection [token] --key /path/to/private.pem --url https://attacker.example/cert.pem
+```
+  </TabItem>
+</Tabs>
+
+`exploit x5uinjection` only sets the header and signs the token — it does not host the certificate itself, since `--url` may point at infrastructure you already control. The `crack` command's `--x5u-server-addr` flag is the one that also serves the certificate.
+
+## What is the impact?
+
+A successful X5U injection attack allows an attacker to forge a JWT that the server accepts as legitimate, with no knowledge of the server's actual signing key. This can lead to full authentication bypass, privilege escalation, or impersonation of any user in the system. It can also be used as a Server-Side Request Forgery (SSRF) primitive, since the server makes an outbound HTTP request to an attacker-chosen URL.
+
+## How to remediate?
+
+- **Never resolve the verification key from the token itself.** Ignore the `x5u` (and `jwk`, `jku`, `x5c`) header fields when verifying — look up the key server-side by `kid` against a pinned keyset or certificate store.
+- **If `x5u` support is unavoidable**, restrict it to a strict allowlist of trusted, fully-qualified certificate URLs — never a pattern match on domain suffix alone — and never follow redirects when fetching it. Validate the fetched certificate's chain up to a pinned, trusted root CA.
+- **Pin the expected algorithm and key(s) per issuer** so a token cannot dictate which key or algorithm family verifies it.
+- **Treat the `x5u` fetch as an outbound request to an untrusted destination**: block internal/private IP ranges to prevent it being used as an SSRF vector against internal services.

