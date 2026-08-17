@@ -108,4 +108,3 @@ To run `jwtop` in CI without pulling the image manually, see the [GitHub Actions
 - name: Scan for JWT vulnerabilities
   run: docker run --rm ghcr.io/cerberauth/jwtop crack "${{ secrets.TEST_TOKEN }}" --url https://staging.example.com/protected
 ```
-</content>
