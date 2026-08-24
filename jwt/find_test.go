@@ -3,6 +3,7 @@ package jwt_test
 import (
 	"strings"
 	"testing"
+	"testing/iotest"
 
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/stretchr/testify/assert"
@@ -63,4 +64,10 @@ func TestFindAllReader_Basic(t *testing.T) {
 	got, err := jwt.FindAllReader(r)
 	assert.NoError(t, err)
 	assert.Equal(t, []string{sampleToken}, got)
+}
+
+func TestFindAllReader_Error(t *testing.T) {
+	r := iotest.ErrReader(assert.AnError)
+	_, err := jwt.FindAllReader(r)
+	assert.Error(t, err)
 }
