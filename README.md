@@ -121,6 +121,7 @@ See the [Docker guide](./docs/docker.mdx) for Compose usage, network joining to 
 jwtop [command] [flags]
 
 Commands:
+  find      Extract JWT tokens from text, a file, or stdin
   decode    Decode and pretty-print a JWT
   verify    Verify a JWT signature
   create    Create and sign a new JWT
@@ -129,6 +130,30 @@ Commands:
   exploit   Apply a known exploit to a JWT
   version   Print version information
 ```
+### find
+
+Extract JWT tokens hidden anywhere in text — a URL, a JSON payload, an HTML page, an `Authorization` header, a log file — and print each one found, one per line.
+
+```sh
+jwtop find [text]
+jwtop find --file <path>
+echo <text> | jwtop find
+```
+
+```sh
+# Extract every JWT from a captured HTTP response
+curl -s https://api.example.com/profile | jwtop find
+
+# Decode the first JWT found in a file
+jwtop find --file response.html | head -1 | jwtop decode
+
+# Verify every JWT in a log file
+jwtop find --file app.log | while read tok; do
+  jwtop verify "$tok" --secret mysecret && echo "OK: $tok"
+done
+```
+
+---
 
 ### decode
 
