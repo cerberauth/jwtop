@@ -25,6 +25,15 @@ If `jwtop` is on `PATH` (check `jwtop -v`; if this repo is the checkout,
 jwtop decode <token>
 ```
 
+If the token is buried in surrounding text — a URL, a log line, a JSON blob,
+an `Authorization` header — instead of standing alone, pull it out first
+with `jwtop find` and pipe it straight in:
+
+```sh
+jwtop find --file ticket.txt | jwtop decode
+echo "$LOG_LINE" | jwtop find | jwtop decode
+```
+
 No `jwtop` available? Decode manually — pad each segment to a multiple of 4
 with `=` before base64 decoding:
 

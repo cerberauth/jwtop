@@ -1,6 +1,7 @@
 package jwt_test
 
 import (
+	"encoding/base64"
 	"testing"
 
 	"github.com/cerberauth/jwtop/jwt"
@@ -31,6 +32,7 @@ func TestDecode_ValidToken(t *testing.T) {
 func TestDecode_InvalidFormat(t *testing.T) {
 	_, err := jwt.Decode("not.a.valid.jwt.string.here")
 	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "expected 3 parts")
 }
 
 func TestDecode_EmptyString(t *testing.T) {
@@ -42,4 +44,33 @@ func TestDecode_FakeJWT(t *testing.T) {
 	decoded, err := jwt.Decode(FakeJWT)
 	require.NoError(t, err)
 	assert.Equal(t, "HS256", decoded.Header["alg"])
+}
+
+func TestDecode_InvalidHeaderBase64(t *testing.T) {
+	_, err := jwt.Decode("???invalid???.e30.sig")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode JWT header")
+}
+
+func TestDecode_InvalidClaimsBase64(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256"}`))
+	_, err := jwt.Decode(header + ".???invalid???.sig")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to decode JWT claims")
+}
+
+func TestDecode_InvalidHeaderJSON(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`not json`))
+	claims := base64.RawURLEncoding.EncodeToString([]byte(`{"sub":"123"}`))
+	_, err := jwt.Decode(header + "." + claims + ".sig")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse JWT header")
+}
+
+func TestDecode_InvalidClaimsJSON(t *testing.T) {
+	header := base64.RawURLEncoding.EncodeToString([]byte(`{"alg":"HS256"}`))
+	claims := base64.RawURLEncoding.EncodeToString([]byte(`not json`))
+	_, err := jwt.Decode(header + "." + claims + ".sig")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to parse JWT claims")
 }

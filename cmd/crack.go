@@ -40,7 +40,7 @@ var (
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
 
 var crackCmd = &cobra.Command{
-	Use:   "crack <token>",
+	Use:   "crack [token]",
 	Short: "Analyse a JWT for vulnerabilities, optionally probing a live server",
 	Long: `Analyse a JWT token for known vulnerabilities.
 
@@ -79,8 +79,14 @@ By default the exploited JWT is sent as "Authorization: Bearer <token>".
 Use --token-in/--token-name/--token-prefix to place it elsewhere, e.g. a
 custom header, a cookie, a query parameter, or a form-encoded body field.
 
+The token can be supplied as a positional argument or piped via stdin:
+
+  jwtop crack <token> --url https://api.example.com/profile
+  echo <token> | jwtop crack --url https://api.example.com/profile
+  jwtop find --file page.html | jwtop crack
+
 Use only against systems you own or have explicit written permission to test.`,
-	Args: cobra.ExactArgs(1),
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		telemetryMeter := telemetryx.GetMeterProvider().Meter(crackOtelName)
 		successCounter, _ := telemetryMeter.Int64Counter("crack.success.counter")
@@ -91,7 +97,11 @@ Use only against systems you own or have explicit written permission to test.`,
 		tracer := otel.Tracer(crackOtelName)
 
 		ctx := cmd.Context()
-		tokenString := args[0]
+		tokenString, err := readTokenArg(args)
+		if err != nil {
+			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
+			return err
+		}
 
 		reportExternalToolAvailability(ctx, toolDetectedCounter, crackExternalTools)
 

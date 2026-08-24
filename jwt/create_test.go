@@ -1,6 +1,8 @@
 package jwt_test
 
 import (
+	"crypto/rand"
+	"crypto/rsa"
 	"testing"
 	"time"
 
@@ -51,10 +53,30 @@ func TestCreate_WithExpiration(t *testing.T) {
 	assert.True(t, expTime.After(time.Now()))
 }
 
-func TestCreate_IntegerClaim(t *testing.T) {
+func TestCreate_WithNotBefore(t *testing.T) {
 	opts := jwt.CreateOptions{
 		Algorithm: "HS256",
-		Claims:    map[string]string{"count": "42"},
+		Claims:    map[string]string{"sub": "user1"},
+		NotBefore: 10 * time.Minute,
+	}
+
+	tokenString, err := jwt.CreateWithSecret(opts, []byte("secret"))
+	require.NoError(t, err)
+
+	parsed, _, _ := new(libjwt.Parser).ParseUnverified(tokenString, libjwt.MapClaims{})
+	nbfTime, err := parsed.Claims.GetNotBefore()
+	require.NoError(t, err)
+	assert.True(t, nbfTime.After(time.Now()))
+}
+
+func TestCreate_IntegerAndBooleanClaims(t *testing.T) {
+	opts := jwt.CreateOptions{
+		Algorithm: "HS256",
+		Claims: map[string]string{
+			"count": "42",
+			"admin": "true",
+			"role":  "member",
+		},
 	}
 
 	tokenString, err := jwt.CreateWithSecret(opts, []byte("secret"))
@@ -63,6 +85,31 @@ func TestCreate_IntegerClaim(t *testing.T) {
 	parsed, _, _ := new(libjwt.Parser).ParseUnverified(tokenString, libjwt.MapClaims{})
 	claims := parsed.Claims.(libjwt.MapClaims)
 	assert.EqualValues(t, 42, claims["count"])
+	assert.EqualValues(t, true, claims["admin"])
+	assert.EqualValues(t, "member", claims["role"])
+}
+
+func TestCreate_RSAKey(t *testing.T) {
+	rsaPriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	opts := jwt.CreateOptions{
+		Algorithm: "RS256",
+		Claims:    map[string]string{"sub": "rsa-user"},
+	}
+
+	tokenString, err := jwt.Create(opts, rsaPriv)
+	require.NoError(t, err)
+	assert.NotEmpty(t, tokenString)
+}
+
+func TestCreate_InvalidAlg(t *testing.T) {
+	opts := jwt.CreateOptions{
+		Algorithm: "INVALID_ALG",
+	}
+
+	_, err := jwt.Create(opts, []byte("secret"))
+	assert.Error(t, err)
 }
 
 func TestParseSigningMethod_Valid(t *testing.T) {
