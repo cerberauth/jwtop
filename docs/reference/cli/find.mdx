@@ -1,0 +1,63 @@
+---
+title: find
+description: Extract JWT tokens hidden in text, a file, or stdin.
+---
+
+Scan arbitrary text for embedded JWTs and print each one found, one per line. JWTs often turn up hidden inside a URL query parameter, a JSON response body, an HTML page, a log file, or an `Authorization` header — `find` locates and extracts them so they can be piped into other `jwtop` commands.
+
+Only structurally valid JWTs are returned; look-alike strings that fail to decode are silently skipped.
+
+## Usage
+
+```sh
+jwtop find [text]
+jwtop find --file <path>
+echo <text> | jwtop find
+```
+
+Input sources, in priority order:
+
+1. `--file <path>` — read text from a file
+2. `[text]` — inline text argument
+3. stdin — used when no argument or `--file` is given
+
+## Examples
+
+```sh
+# Extract every JWT from a captured HTTP response
+curl -s https://api.example.com/profile | jwtop find
+
+# Extract the JWT from a URL
+jwtop find "https://example.com/callback?token=eyJhbGciOiJIUzI1NiJ9...&state=xyz"
+
+# Scan a saved page or log file
+jwtop find --file response.html
+```
+
+## Combine with other commands
+
+Since every command that accepts a token also reads it from stdin, `find` composes directly into a pipeline:
+
+```sh
+# Decode the first JWT found in a file
+jwtop find --file response.html | head -1 | jwtop decode
+
+# Decode a JWT found in a URL
+echo "https://example.com/?token=eyJ..." | jwtop find | jwtop decode
+
+# Verify every JWT in a log file
+jwtop find --file app.log | while read tok; do
+  jwtop verify "$tok" --secret mysecret && echo "OK: $tok"
+done
+
+# Crack all tokens found in a captured HTTP response
+curl -s https://api.example.com/profile | jwtop find | while read tok; do
+  jwtop crack "$tok"
+done
+```
+
+import { Aside } from '@/components/docs';
+
+<Aside type="note">
+  `find` prints one token per line with duplicates removed. When multiple tokens are found, pipe through `head -1` or a loop to process them individually.
+</Aside>
