@@ -5,10 +5,14 @@ description: Drive the jwtop CLI (github.com/cerberauth/jwtop) for any JWT task 
 
 # jwtop
 
-jwtop is a Go CLI (this repo) covering the full JWT lifecycle: `decode`,
-`verify`, `create`, `sign`, plus a security-testing layer: `crack` (analyze/probe
-for vulnerabilities) and `exploit` (apply one known technique, print the
-resulting token).
+jwtop is a Go CLI (this repo) covering the full JWT lifecycle: `find`
+(extract a hidden token from text), `decode`, `verify`, `create`, `sign`,
+plus a security-testing layer: `crack` (analyze/probe for vulnerabilities)
+and `exploit` (apply one known technique, print the resulting token).
+
+Every command that takes `<token>` also reads it from stdin when the
+argument is omitted, so `find` composes directly into a pipeline with any
+of them: `jwtop find --file page.html | jwtop decode`.
 
 **`crack` and `exploit` are for authorized testing only** — your own
 systems, a pentest engagement with signed-off scope, or a CTF. Never point
@@ -35,6 +39,7 @@ perform up front on every task:
 
 | User wants to... | Command |
 |---|---|
+| Pull a JWT out of a URL, JSON blob, HTML page, log file, or other text where it's buried | `find` |
 | See what's inside a token (no trust implied) | `decode` |
 | Confirm a token's signature is valid | `verify` |
 | Mint a brand-new token from scratch | `create` |
@@ -47,6 +52,20 @@ a scanner — it runs the applicable checks, judges pass/fail against a
 baseline, and emits a report. `exploit <technique>` is a single tool — it
 always produces a token, with no judgment about whether it will work,
 because it doesn't have a target to test it against.
+
+## find — extract a token hidden in text
+
+```sh
+jwtop find "https://example.com/callback?token=eyJhbGciOiJIUzI1NiJ9...&state=xyz"
+jwtop find --file response.html
+curl -s https://api.example.com/profile | jwtop find
+```
+
+Scans arbitrary text — a URL, a JSON response, an HTML page, a log file, an
+`Authorization` header — and prints every structurally valid JWT found, one
+per line, deduplicated. Reach for this whenever the user hands you a token
+embedded in something bigger rather than the bare token itself. Pipe
+straight into the next command: `jwtop find --file page.html | jwtop decode`.
 
 ## decode — inspect without trusting
 

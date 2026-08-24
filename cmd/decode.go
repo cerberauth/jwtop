@@ -15,9 +15,16 @@ import (
 var decodeOtelName = "github.com/cerberauth/jwtop/cmd/decode"
 
 var decodeCmd = &cobra.Command{
-	Use:   "decode <token>",
+	Use:   "decode [token]",
 	Short: "Decode and pretty-print a JWT",
-	Args:  cobra.ExactArgs(1),
+	Long: `Decode and pretty-print a JWT without verifying the signature.
+
+The token can be supplied as a positional argument or piped via stdin:
+
+  jwtop decode <token>
+  echo <token> | jwtop decode
+  jwtop find --file page.html | jwtop decode`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		telemetryMeter := telemetryx.GetMeterProvider().Meter(decodeOtelName)
 		decodeSuccessCounter, _ := telemetryMeter.Int64Counter("decode.success.counter")
@@ -25,7 +32,13 @@ var decodeCmd = &cobra.Command{
 
 		ctx := cmd.Context()
 
-		decoded, err := jwt.Decode(args[0])
+		tokenString, err := readTokenArg(args)
+		if err != nil {
+			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
+			return err
+		}
+
+		decoded, err := jwt.Decode(tokenString)
 		if err != nil {
 			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to decode token")))
 			return fmt.Errorf("failed to decode token: %w", err)

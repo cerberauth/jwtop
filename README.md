@@ -130,6 +130,9 @@ Commands:
   exploit   Apply a known exploit to a JWT
   version   Print version information
 ```
+
+Every command that accepts a `<token>` argument also reads it from stdin when the argument is omitted, so `find` composes directly into a pipeline: `jwtop find --file page.html | jwtop decode`.
+
 ### find
 
 Extract JWT tokens hidden anywhere in text — a URL, a JSON payload, an HTML page, an `Authorization` header, a log file — and print each one found, one per line.
@@ -161,6 +164,7 @@ Decode and pretty-print a JWT without verifying the signature.
 
 ```sh
 jwtop decode <token>
+echo <token> | jwtop decode
 ```
 
 ```sh

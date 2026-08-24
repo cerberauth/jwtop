@@ -13,7 +13,7 @@ Verify the signature of a JWT and validate standard claims (`exp`, `nbf`, `iss`,
 jwtop verify <token> [--secret <secret>] [--key <pem-file>] [--jwks <uri>]
 ```
 
-Exactly one key source must be provided.
+Exactly one key source must be provided. When `<token>` is omitted, the token is read from stdin — e.g. `jwtop find --file page.html | jwtop verify --secret mysecret`.
 
 ## Flags
 

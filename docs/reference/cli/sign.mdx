@@ -41,6 +41,7 @@ jwtop sign $TOKEN --alg none
 
 ## Notes
 
+- When `<token>` is omitted, it is read from stdin — e.g. `jwtop find --file page.html | jwtop sign --alg HS256 --secret newsecret`.
 - The input token's claims and registered claim values are kept unchanged.
 - `--alg none` does not require a key. The resulting token has an empty signature segment and its header `alg` is set to `"none"`.
 - See [Strip or remove a token signature](../../guides/strip-signature) for context on when this is useful.

@@ -20,15 +20,28 @@ var (
 var signOtelName = "github.com/cerberauth/jwtop/cmd/sign"
 
 var signCmd = &cobra.Command{
-	Use:   "sign <token>",
+	Use:   "sign [token]",
 	Short: "Re-sign an existing JWT with a new algorithm or key",
-	Args:  cobra.ExactArgs(1),
+	Long: `Re-sign an existing JWT with a new algorithm or key.
+
+The token can be supplied as a positional argument or piped via stdin:
+
+  jwtop sign <token> --alg HS256 --secret mysecret
+  echo <token> | jwtop sign --alg none
+  jwtop find --file page.html | jwtop sign --alg HS256 --secret mysecret`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		telemetryMeter := telemetryx.GetMeterProvider().Meter(signOtelName)
 		signSuccessCounter, _ := telemetryMeter.Int64Counter("sign.success.counter")
 		signErrorCounter, _ := telemetryMeter.Int64Counter("sign.error.counter")
 
 		ctx := cmd.Context()
+
+		inputToken, err := readTokenArg(args)
+		if err != nil {
+			signErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
+			return err
+		}
 
 		if signAlg == "" {
 			signErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "missing algorithm")))
@@ -37,7 +50,7 @@ var signCmd = &cobra.Command{
 
 		algAttr := attribute.String("alg", signAlg)
 
-		writer, err := editor.NewTokenEditor(args[0])
+		writer, err := editor.NewTokenEditor(inputToken)
 		if err != nil {
 			signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to parse token")))
 			return fmt.Errorf("parsing token: %w", err)

@@ -19,6 +19,8 @@ The `jwtop` CLI covers the full JWT workflow, including security testing.
   <LinkCard title="exploit" description="Produce a modified token with a specific security exploit applied." href="./exploit/" />
 </CardGrid>
 
+Every command that takes a `<token>` argument also accepts it via stdin when the argument is omitted, so commands compose in pipelines: `jwtop find --file page.html | jwtop decode`.
+
 ## Global usage
 
 ```sh
