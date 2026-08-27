@@ -1,0 +1,94 @@
+---
+title: genkey
+description: Generate cryptographically secure signing key material for a JWT algorithm.
+---
+
+Generate a signing key or secret for a JWT algorithm. You choose the algorithm,
+size, and encoding; JWTop refuses parameters that would produce a weak key.
+
+`genkey` is also available as `generate-key`.
+
+## Usage
+
+```sh
+jwtop genkey --alg <alg> [options]
+```
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--alg` | Target algorithm **(required)**. One of `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`, `ES256`, `ES384`, `ES512`, `EdDSA` |
+| `--rsa-bits` | RSA modulus size in bits. RSA algorithms only. Default `2048`, minimum `2048` |
+| `--secret-bytes` | HMAC secret length in bytes. HMAC algorithms only. Default matches the MAC output size (32 / 48 / 64 for HS256 / HS384 / HS512); shorter values are rejected |
+| `--secret-format` | HMAC secret encoding: `base64url` (default), `base64`, `hex`, `raw` |
+| `--out` | Write key material to this path instead of stdout. For asymmetric algorithms the public key is written to `<out>.pub` |
+| `--force` | Overwrite existing files at the `--out` path |
+| `--public-only` | Emit only the public key. Asymmetric algorithms only |
+
+## Security defaults
+
+- **CSPRNG only.** Every byte is drawn from Go's `crypto/rand`.
+- **RSA ≥ 2048 bits.** The floor from [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final) and [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518). Choose `3072` or `4096` for a longer security margin.
+- **HMAC secret ≥ MAC output size.** A secret shorter than the hash output weakens the construction, so `--secret-bytes` cannot go below 32 / 48 / 64.
+- **ECDSA curve pinned to the algorithm.** `ES256` → P-256, `ES384` → P-384, `ES512` → P-521.
+- **PEM encoding.** Private keys are PKCS#8 (`PRIVATE KEY`), public keys are PKIX (`PUBLIC KEY`).
+- **File permissions.** Private keys and secrets are written `0600`, public keys `0644`. Existing files are never overwritten without `--force`.
+
+## Output
+
+Without `--out`, key material is printed to stdout:
+
+- **HMAC** — the encoded secret on a single line.
+- **Asymmetric** — the private key PEM followed by the public key PEM (or just the public key with `--public-only`).
+
+With `--out`, files are written and a confirmation line is printed to stderr.
+
+## Examples
+
+**HS256 secret to stdout (base64url)**
+
+```sh
+jwtop genkey --alg HS256
+```
+
+**64-byte HS512 secret as hex**
+
+```sh
+jwtop genkey --alg HS512 --secret-bytes 64 --secret-format hex
+```
+
+**RSA 3072-bit key pair to files**
+
+```sh
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+# writes private.pem (0600) and private.pem.pub (0644)
+```
+
+**ECDSA P-256 key pair, then mint a token with it**
+
+```sh
+jwtop genkey --alg ES256 --out es256
+jwtop create --alg ES256 --key es256 --sub user123 --exp 1h
+```
+
+**Public key only, for a verifier**
+
+```sh
+jwtop genkey --alg RS256 --public-only
+```
+
+## Piping
+
+Send a generated HMAC secret straight into another command:
+
+```sh
+jwtop genkey --alg HS256 --secret-format raw > secret.key
+jwtop create --alg HS256 --secret "$(cat secret.key)" --sub user123
+```
+
+## Handling generated keys
+
+The printed private key or secret is a credential. Store it in a secret manager,
+keep it out of version control, and rotate it on a schedule. For multi-service
+setups, distribute only the public key and publish a JWKS endpoint.
