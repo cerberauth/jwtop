@@ -18,7 +18,7 @@
 
 JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the full JWT lifecycle: decoding, verifying, creating, and signing tokens — plus a security-testing layer for probing and exploiting common JWT vulnerabilities.
 
-- **CLI** — decode, verify, create, sign, crack, and exploit tokens from the terminal
+- **CLI** — decode, verify, create, sign, generate keys, crack, and exploit tokens from the terminal
 - **Library** — composable Go packages for each operation, designed for direct integration
 - **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
 
@@ -33,6 +33,7 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 | Decode JWT (no verification) | ✓ | ✓ |
 | Verify signature (HMAC, RSA, ECDSA, JWKS) | ✓ | ✓ |
 | Create and sign new tokens | ✓ | ✓ |
+| Generate signing keys / secrets (RSA, EC, EdDSA, HMAC) | ✓ | ✓ |
 | Re-sign existing tokens | ✓ | ✓ |
 | Crack HMAC secret (dictionary attack, optional john/hashcat fallback) | ✓ | ✓ |
 | Probe server for JWT vulnerabilities | ✓ | ✓ |
@@ -248,6 +249,47 @@ jwtop create --alg HS256 --secret mysecret \
 # RS256 with a private key
 jwtop create --alg RS256 --key /path/to/private.pem --sub user123 --exp 24h
 ```
+
+---
+
+### genkey
+
+Generate signing key material for an algorithm, with the parameters under your
+control but weak choices refused: RSA keys are at least 2048 bits, HMAC secrets
+at least the MAC output size, and every byte comes from the `crypto/rand`
+CSPRNG. Private keys and secrets are PKCS#8 / PKIX PEM or an encoding you pick.
+
+```sh
+jwtop genkey --alg <alg> [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Target algorithm: `HS256`/`384`/`512`, `RS*`, `PS*`, `ES256`/`384`/`512`, `EdDSA` **(required)** |
+| `--rsa-bits` | RSA modulus size (RSA only; default `2048`, minimum `2048`) |
+| `--secret-bytes` | HMAC secret length in bytes (HMAC only; default matches the MAC output size) |
+| `--secret-format` | HMAC secret encoding: `base64url` (default), `base64`, `hex`, `raw` |
+| `--out` | Write to this path instead of stdout; the public key goes to `<out>.pub` |
+| `--force` | Overwrite existing files at `--out` |
+| `--public-only` | Emit only the public key (asymmetric algorithms only) |
+
+```sh
+# HS256 secret to stdout (base64url)
+jwtop genkey --alg HS256
+
+# 64-byte HS512 secret as hex
+jwtop genkey --alg HS512 --secret-bytes 64 --secret-format hex
+
+# RSA 3072-bit key pair to files: private.pem (0600) + private.pem.pub (0644)
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+
+# ECDSA P-256 key pair, then mint a token with it
+jwtop genkey --alg ES256 --out es256
+jwtop create --alg ES256 --key es256 --sub user123
+```
+
+> Treat the printed private key or secret as a credential: store it in a secret
+> manager, never commit it, and rotate it on a schedule.
 
 ---
 
@@ -634,6 +676,19 @@ token, err = jwt.Create(jwt.CreateOptions{
     Algorithm: "RS256",
     Claims:    map[string]string{"sub": "user123"},
 }, privateKey)
+```
+
+**Generate keys:**
+
+```go
+// HMAC secret (crypto/rand; length defaults to the MAC output size, min enforced)
+k, err := jwt.GenerateKeyPair(jwt.GenerateKeyOptions{Algorithm: "HS256"})
+secret := k.Secret
+b64url, _ := k.EncodeSecret(jwt.SecretFormatBase64URL)
+
+// Asymmetric key pair (RSA >= 2048 enforced; PKCS#8 / PKIX PEM)
+k, err = jwt.GenerateKeyPair(jwt.GenerateKeyOptions{Algorithm: "RS256", RSABits: 3072})
+privPEM, pubPEM := k.PrivatePEM, k.PublicPEM
 ```
 
 ### Token editor — `jwt/editor`

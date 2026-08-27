@@ -41,18 +41,33 @@ Values are auto-parsed: `9001` becomes an integer, `true` becomes a boolean, eve
 jwtop create --alg HS256 --secret testsecret --sub user-1 --exp 30s
 ```
 
+## Generate a signing key or secret
+
+`jwtop genkey` produces key material with enforced minimum-strength parameters
+(RSA ≥ 2048 bits, HMAC secret ≥ the MAC output size, `crypto/rand` only):
+
+```sh
+# Random HS256 secret for a test suite
+export TEST_SECRET=$(jwtop genkey --alg HS256)
+
+# RSA key pair on disk: test-private.pem (0600) + test-private.pem.pub (0644)
+jwtop genkey --alg RS256 --out test-private.pem
+```
+
+See the [`genkey` reference](/reference/cli/genkey/) for every flag.
+
 ## Asymmetric key tokens (RS256 / ES256)
 
 ```sh
 # Generate a key pair once
-openssl genrsa -out test-private.pem 2048
-openssl rsa -in test-private.pem -pubout -out test-public.pem
+jwtop genkey --alg RS256 --out test-private.pem
+# (or: openssl genrsa -out test-private.pem 2048 && openssl rsa -in test-private.pem -pubout -out test-private.pem.pub)
 
 # Mint a token
 jwtop create --alg RS256 --key test-private.pem --sub user-42 --exp 1h
 
 # Verify it
-jwtop verify $TOKEN --key test-public.pem
+jwtop verify $TOKEN --key test-private.pem.pub
 ```
 
 ## In GitHub Actions

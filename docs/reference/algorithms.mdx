@@ -13,7 +13,10 @@ JWTop supports all algorithm families defined by [RFC 7518](https://www.rfc-edit
 | RSA PKCS#1 v1.5 | `RS256`, `RS384`, `RS512` | RSA private/public key |
 | RSA-PSS | `PS256`, `PS384`, `PS512` | RSA private/public key |
 | ECDSA | `ES256`, `ES384`, `ES512` | EC private/public key |
+| EdDSA | `EdDSA` | Ed25519 private/public key |
 | None | `none` | No key required |
+
+`EdDSA` (Ed25519) is defined by [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037). It is supported by `create`, `sign`, `verify`, and `genkey`.
 
 ## Algorithm selection guide
 
@@ -33,7 +36,17 @@ JWTop supports all algorithm families defined by [RFC 7518](https://www.rfc-edit
 
 ## Generating keys
 
-Use standard tools to generate PEM key pairs:
+The built-in [`genkey`](/reference/cli/genkey/) command generates key material
+with enforced minimum-strength parameters:
+
+```sh
+jwtop genkey --alg HS256                        # HMAC secret (base64url)
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+jwtop genkey --alg ES256 --out es256
+jwtop genkey --alg EdDSA --out ed25519
+```
+
+Or use standard tools to generate PEM key pairs:
 
 ```sh
 # RSA 2048-bit
@@ -47,4 +60,8 @@ openssl ec -in private.pem -pubout -out public.pem
 # EC P-384 (for ES384)
 openssl ecparam -name secp384r1 -genkey -noout -out private.pem
 openssl ec -in private.pem -pubout -out public.pem
+
+# Ed25519 (for EdDSA)
+openssl genpkey -algorithm ed25519 -out private.pem
+openssl pkey -in private.pem -pubout -out public.pem
 ```

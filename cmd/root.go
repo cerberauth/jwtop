@@ -38,6 +38,7 @@ func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
 	}
 
 	rootCmd.AddCommand(findCmd)
+	rootCmd.AddCommand(genkeyCmd)
 	rootCmd.AddCommand(decodeCmd)
 	rootCmd.AddCommand(verifyCmd)
 	rootCmd.AddCommand(createCmd)
