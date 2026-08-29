@@ -133,28 +133,17 @@ Use only against systems you own or have explicit written permission to test.`,
 			reporters.WithPrefix("jwt.crack"),
 		)
 
-		formatter, err := cobrareportx.FormatterFromFlags(cmd)
-		if err != nil {
-			return err
-		}
-		writer, cleanup, err := cobrareportx.WriterFromFlags(cmd)
+		sinks, cleanup, err := cobrareportx.SinksFromFlags(cmd)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 
-		httpTransport, err := cobrareportx.HTTPTransportFromFlags(cmd)
-		if err != nil {
-			return err
-		}
-
 		reportxReporter := harnessreport.New(ctx, harnessreport.Config{
 			ToolName:        name,
 			ToolVersion:     toolVersion,
 			Title:           "JWT Security Scan",
-			Formatter:       formatter,
-			Writer:          writer,
-			Transport:       httpTransport,
+			Sinks:           sinks,
 			CheckDefs:       crack.CheckDefs(),
 			BaselineCheckID: crack.BaselineCheckID,
 		})
