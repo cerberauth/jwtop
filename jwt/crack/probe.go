@@ -12,6 +12,7 @@ import (
 	algnone "github.com/cerberauth/jwtop/jwt/crack/checks/alg_none"
 	"github.com/cerberauth/jwtop/jwt/crack/checks/baseline"
 	blanksecret "github.com/cerberauth/jwtop/jwt/crack/checks/blank_secret"
+	claimfuzz "github.com/cerberauth/jwtop/jwt/crack/checks/fuzz"
 	hmacconfusion "github.com/cerberauth/jwtop/jwt/crack/checks/hmac_confusion"
 	jkuinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jku_injection"
 	jwkinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jwk_injection"
@@ -55,6 +56,8 @@ type ProbeOptions struct {
 	ExternalToolEvents *[]ExternalToolEvent
 	JKUServerAddr      string
 	X5UServerAddr      string
+	Fuzz               bool
+	FuzzMaxStringLen   int
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -79,6 +82,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		x5cinjection.Check,
 		x5uinjection.Check,
 		weaksecret.Check,
+		claimfuzz.Check,
 	}
 
 	defs := make(map[harnessx.CheckID]CheckDef, len(checks))
@@ -95,6 +99,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[x5cinjection.Check.ID] = x5cinjection.Def
 	defs[x5uinjection.Check.ID] = x5uinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
+	defs[claimfuzz.Check.ID] = claimfuzz.Def
 	for _, c := range checks {
 		def := defs[c.ID]
 		def.Name = c.Name
@@ -133,6 +138,8 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		ExternalToolEvents: opts.ExternalToolEvents,
 		JKUServerAddr:      opts.JKUServerAddr,
 		X5UServerAddr:      opts.X5UServerAddr,
+		FuzzEnabled:        opts.Fuzz,
+		FuzzMaxStringLen:   opts.FuzzMaxStringLen,
 	}
 
 	checks, defs := BuildChecks()

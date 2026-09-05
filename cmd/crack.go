@@ -10,6 +10,7 @@ import (
 	"github.com/cerberauth/jwtop/jwt/crack"
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	"github.com/cerberauth/jwtop/jwt/exploit"
+	jwtfuzz "github.com/cerberauth/jwtop/jwt/fuzz"
 	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
 	"github.com/cerberauth/x/reportx/harnessreport"
 	"github.com/cerberauth/x/telemetryx"
@@ -35,6 +36,8 @@ var (
 	crackExternalTools  externalToolFlags
 	crackJKUServerAddr  string
 	crackX5UServerAddr  string
+	crackFuzz           bool
+	crackFuzzMaxStrLen  int
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -74,6 +77,17 @@ Additional online-only techniques:
                   only)
   x5uinjection    x5u header pointed at a locally-served certificate
                   (requires --x5u-server-addr; RSA/ECDSA only)
+
+--fuzz adds claim-mutation fuzzing (online only), complementing the fixed
+techniques above: every claim is mutated in turn — type confusion (number,
+float, boolean, array, object), an oversized string, special characters
+(SQL/command/template injection, XSS, path traversal, null bytes, CRLF,
+format strings, Unicode overrides), and an explicit null — and each
+response is compared against a reference response captured from the
+original token. A mutation is flagged when the response diverges: a 5xx
+status, a leaked stack trace/exception, or a body length far from the
+reference's. --fuzz-max-string-len controls the oversized-string payload
+length (default 10000).
 
 By default the exploited JWT is sent as "Authorization: Bearer <token>".
 Use --token-in/--token-name/--token-prefix to place it elsewhere, e.g. a
@@ -163,6 +177,8 @@ Use only against systems you own or have explicit written permission to test.`,
 			ExternalToolEvents: &externalEvents,
 			JKUServerAddr:      crackJKUServerAddr,
 			X5UServerAddr:      crackX5UServerAddr,
+			Fuzz:               crackFuzz,
+			FuzzMaxStringLen:   crackFuzzMaxStrLen,
 			TokenLocation: crack.TokenLocation{
 				In:     crackTokenIn,
 				Name:   crackTokenName,
@@ -217,6 +233,8 @@ func init() {
 	crackCmd.Flags().StringVar(&crackTokenPrefix, "token-prefix", "", "Value prefix before the token, e.g. \"Bearer \" (default \"Bearer \" only for the default Authorization header)")
 	crackCmd.Flags().StringVar(&crackJKUServerAddr, "jku-server-addr", "", "Bind address for a local JWKS server used by the jkuinjection check, e.g. \"0.0.0.0:8089\" (must be reachable by the target; check is skipped if unset)")
 	crackCmd.Flags().StringVar(&crackX5UServerAddr, "x5u-server-addr", "", "Bind address for a local certificate server used by the x5uinjection check, e.g. \"0.0.0.0:8090\" (must be reachable by the target; check is skipped if unset)")
+	crackCmd.Flags().BoolVar(&crackFuzz, "fuzz", false, "Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline (requires --url)")
+	crackCmd.Flags().IntVar(&crackFuzzMaxStrLen, "fuzz-max-string-len", jwtfuzz.DefaultMaxStringLen, "Length of the oversized-string payload used by --fuzz")
 	registerExternalToolFlags(crackCmd, &crackExternalTools)
 	cobrareportx.RegisterFormatFlags(crackCmd)
 	cobrareportx.RegisterTransportFlags(crackCmd)

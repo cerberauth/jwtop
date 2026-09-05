@@ -163,6 +163,12 @@ jobs:
         include:
           - challenge: "jwt-alg-none-bypass"
           - challenge: "jwt-blank-secret"
+          - challenge: "jwt-claim-oversized-value"
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-special-chars"
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-type-confusion"
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
           - challenge: "jwt-jku-header-injection"
           - challenge: "jwt-jwk-header-injection"
           - challenge: "jwt-kid-path-traversal"

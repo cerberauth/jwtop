@@ -327,6 +327,9 @@ jwtop crack <token> [--wordlist <file>] [--secret <s>...] [--workers <n>]
 
 # Online — probe a live server
 jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wordlist <file>] [--secret <s>...] [--workers <n>] [--delay <duration>]
+
+# Online — add claim-mutation fuzzing
+jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 ```
 
 | Flag | Description |
@@ -350,6 +353,8 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
 | `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`, so PATH resolution is only needed when this is omitted |
 | `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+| `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
+| `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
 
 `--john`/`--hashcat` are entirely optional and off by default; when either tool is detected on `PATH` but not enabled, jwtop prints a one-line suggestion to stderr. See [External cracking tools](#external-cracking-tools-john--hashcat) below.
 
@@ -362,7 +367,9 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`), `fuzz` (claim-mutation fuzzing, opt-in via `--fuzz`).
+
+**`fuzz`** — off by default, enabled with `--fuzz`. Complements the fixed checks above by mutating every claim value (type confusion, an oversized string, special characters, an explicit null) and comparing each mutated response against a reference response captured from the original token. It flags a mutation when the response diverges: a `5xx` status, a leaked stack trace/exception, or a body length far from the reference's — signs of a parsing bug the fixed checks don't target. `--fuzz-max-string-len` controls the oversized-string payload length.
 
 > Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
 
@@ -390,6 +397,9 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --tok
 
 # Online — JWT expected in a custom header
 jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
+
+# Online — add claim-mutation fuzzing to the fixed check set
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
 ```
 
 Exits `0` when at least one vulnerability was found, `1` when none were.
@@ -759,6 +769,9 @@ results, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
     Workers:        8,
     // TokenLocation defaults to Authorization: Bearer <token> when omitted.
     TokenLocation: crack.TokenLocation{In: "cookie", Name: "session"},
+    // Fuzz enables claim-mutation fuzzing (off by default); FuzzMaxStringLen
+    // defaults to fuzz.DefaultMaxStringLen when left at 0.
+    Fuzz: true,
 })
 for _, r := range results {
     switch {

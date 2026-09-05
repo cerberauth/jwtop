@@ -44,6 +44,8 @@ echo <token> | jwtop crack --url <url>
 | `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
 | `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`; resolved via `PATH` when omitted |
 | `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+| `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
+| `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
 
 ## External cracking tools
 
@@ -121,6 +123,22 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --t
 | `kidinjection (path)` | Path traversal via the `kid` header |
 | `jwkinjection` | Self-signed JWK embedded in the header and trusted by the server — CVE-2018-0114 (skipped for non-asymmetric algorithms) |
 | `weaksecret` | Dictionary brute-force of the HMAC signing secret |
+| `fuzz` | Claim-mutation fuzzing — opt-in via `--fuzz`, skipped otherwise |
+
+### Claim-mutation fuzzing (`--fuzz`)
+
+`--fuzz` complements the fixed techniques above with a fuzzing pass: every claim is mutated in turn (type confusion, an oversized string, special characters, an explicit null) and each mutated response is compared against a reference response captured from the original, unmutated token — not the invalid-token baseline used by the other checks. A mutation is flagged when the response diverges:
+
+- a `5xx` status code
+- the body matches a known stack-trace/unhandled-exception signature
+- the body length differs from the reference by more than 50%
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz --fuzz-max-string-len 100000
+```
+
+See [JWT Claim Fuzzing](/vulnerabilities/jwt-claim-fuzzing/) for details.
 
 ## Output format
 
@@ -192,6 +210,12 @@ jwtop crack $TOKEN --url https://api.example.com/protected \
 ```sh
 jwtop crack $TOKEN --url https://api.example.com/protected \
   --expected-status 403
+```
+
+**Online — add claim-mutation fuzzing to the fixed check set**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
 ```
 
 ## Exit codes
