@@ -153,7 +153,7 @@ jobs:
         run: ./jwtop crack ${{ steps.create-blank.outputs.jwt }} --sqa-opt-out
 
   run-jwt-crack-scans:
-    name: JWT Crack - ${{ matrix.challenge }}
+    name: JWT Crack - ${{ matrix.challenge }} (${{ matrix.vulnerable && 'vulnerable' || 'not vulnerable' }})
     runs-on: ubuntu-latest
     needs: build
 
@@ -162,24 +162,71 @@ jobs:
       matrix:
         include:
           - challenge: "jwt-alg-none-bypass"
+            vulnerable: true
+          - challenge: "jwt-alg-none-bypass"
+            vulnerable: false
           - challenge: "jwt-blank-secret"
+            vulnerable: true
+          - challenge: "jwt-blank-secret"
+            vulnerable: false
           - challenge: "jwt-claim-oversized-value"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-oversized-value"
+            vulnerable: false
             crack_args: "--fuzz --secret s3cr3t-dev-key"
           - challenge: "jwt-claim-special-chars"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-special-chars"
+            vulnerable: false
             crack_args: "--fuzz --secret s3cr3t-dev-key"
           - challenge: "jwt-claim-type-confusion"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-type-confusion"
+            vulnerable: false
             crack_args: "--fuzz --secret s3cr3t-dev-key"
           - challenge: "jwt-jku-header-injection"
+            vulnerable: true
+          - challenge: "jwt-jku-header-injection"
+            vulnerable: false
           - challenge: "jwt-jwk-header-injection"
+            vulnerable: true
+          - challenge: "jwt-jwk-header-injection"
+            vulnerable: false
           - challenge: "jwt-kid-path-traversal"
+            vulnerable: true
+            crack_args: "--kid-path /dev/null"
+          - challenge: "jwt-kid-path-traversal"
+            vulnerable: false
             crack_args: "--kid-path /dev/null"
           - challenge: "jwt-kid-sql-injection"
+            vulnerable: true
+            crack_args: "--kid-sql-table keys"
+          - challenge: "jwt-kid-sql-injection"
+            vulnerable: false
             crack_args: "--kid-sql-table keys"
           - challenge: "jwt-not-verified"
+            vulnerable: true
+          - challenge: "jwt-not-verified"
+            vulnerable: false
           - challenge: "jwt-null-signature"
+            vulnerable: true
+          - challenge: "jwt-null-signature"
+            vulnerable: false
           - challenge: "jwt-psychic-signature"
+            vulnerable: true
+          - challenge: "jwt-psychic-signature"
+            vulnerable: false
           - challenge: "jwt-weak-hmac-secret"
+            vulnerable: true
+          - challenge: "jwt-weak-hmac-secret"
+            vulnerable: false
           - challenge: "jwt-x5c-x5u-header-injection"
+            vulnerable: true
+          - challenge: "jwt-x5c-x5u-header-injection"
+            vulnerable: false
 
     steps:
       - uses: actions/checkout@v7
@@ -192,11 +239,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Server
-        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest serve --vulnerable=${{ matrix.vulnerable }}
 
       - name: Get JWT
         id: get-jwt
-        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest jwt)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest jwt --vulnerable=${{ matrix.vulnerable }})" >> $GITHUB_OUTPUT
 
       - name: Download binary
         uses: actions/download-artifact@v8
@@ -212,9 +259,19 @@ jobs:
         run: |
           ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --sqa-opt-out
 
-      - name: Check for working exploit
-        if: ${{ steps.crack.outputs.conclusion == 'failure' }}
-        run: echo "No working exploit found for ${{ matrix.challenge }}"
+      - name: Check crack result
+        run: |
+          if [ "${{ matrix.vulnerable }}" = "true" ]; then
+            if [ "${{ steps.crack.outcome }}" = "failure" ]; then
+              echo "No working exploit found for ${{ matrix.challenge }} (vulnerable mode)"
+            fi
+          else
+            if [ "${{ steps.crack.outcome }}" = "success" ]; then
+              echo "::error::Exploit unexpectedly found for ${{ matrix.challenge }} in fixed (non-vulnerable) mode"
+              exit 1
+            fi
+            echo "No exploit found for ${{ matrix.challenge }} (fixed mode, as expected)"
+          fi
 
       - name: Stop Server
         if: ${{ always() }}
@@ -276,9 +333,14 @@ jobs:
         run: ./jwtop crack ${{ steps.create-weak.outputs.jwt }} --hashcat --sqa-opt-out
 
   run-jwt-hmac-confusion-scan:
-    name: JWT Crack - jwt-hmac-confusion
+    name: JWT Crack - jwt-hmac-confusion (${{ matrix.vulnerable && 'vulnerable' || 'not vulnerable' }})
     runs-on: ubuntu-latest
     needs: build
+
+    strategy:
+      fail-fast: false
+      matrix:
+        vulnerable: [true, false]
 
     steps:
       - uses: actions/checkout@v7
@@ -291,11 +353,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Server
-        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest serve --vulnerable=${{ matrix.vulnerable }}
 
       - name: Get JWT
         id: get-jwt
-        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest jwt)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest jwt --vulnerable=${{ matrix.vulnerable }})" >> $GITHUB_OUTPUT
 
       - name: Download binary
         uses: actions/download-artifact@v8
@@ -311,9 +373,19 @@ jobs:
         run: |
           ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --key http://localhost:8080/public-key --sqa-opt-out
 
-      - name: Check for working exploit
-        if: ${{ steps.crack.outputs.conclusion == 'failure' }}
-        run: echo "No working exploit found for jwt-hmac-confusion"
+      - name: Check crack result
+        run: |
+          if [ "${{ matrix.vulnerable }}" = "true" ]; then
+            if [ "${{ steps.crack.outcome }}" = "failure" ]; then
+              echo "No working exploit found for jwt-hmac-confusion (vulnerable mode)"
+            fi
+          else
+            if [ "${{ steps.crack.outcome }}" = "success" ]; then
+              echo "::error::Exploit unexpectedly found for jwt-hmac-confusion in fixed (non-vulnerable) mode"
+              exit 1
+            fi
+            echo "No exploit found for jwt-hmac-confusion (fixed mode, as expected)"
+          fi
 
       - name: Stop Server
         if: ${{ always() }}
