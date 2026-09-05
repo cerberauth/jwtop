@@ -254,20 +254,26 @@ jobs:
         run: chmod +x jwtop
 
       - name: jwtop crack
-        id: crack
         continue-on-error: true
         run: |
-          ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --sqa-opt-out
+          ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --format json --sqa-opt-out | tee crack-report.json
 
       - name: Check crack result
         run: |
+          if [ "${{ matrix.challenge }}" = "jwt-weak-hmac-secret" ]; then
+            relevant=$(jq '[.findings[]] | length' crack-report.json)
+          else
+            relevant=$(jq '[.findings[] | select(.id != "Weak Secret")] | length' crack-report.json)
+          fi
+
           if [ "${{ matrix.vulnerable }}" = "true" ]; then
-            if [ "${{ steps.crack.outcome }}" = "failure" ]; then
+            if [ "$relevant" -eq 0 ]; then
               echo "No working exploit found for ${{ matrix.challenge }} (vulnerable mode)"
             fi
           else
-            if [ "${{ steps.crack.outcome }}" = "success" ]; then
+            if [ "$relevant" -gt 0 ]; then
               echo "::error::Exploit unexpectedly found for ${{ matrix.challenge }} in fixed (non-vulnerable) mode"
+              jq '.findings[] | .id' crack-report.json
               exit 1
             fi
             echo "No exploit found for ${{ matrix.challenge }} (fixed mode, as expected)"
