@@ -55,6 +55,9 @@ type ProbeCtx struct {
 	ExternalToolEvents *[]ExternalToolEvent
 	JKUServerAddr      string
 	X5UServerAddr      string
+	FuzzEnabled        bool
+	FuzzMaxStringLen   int
+	CrackedHMACSecret  string
 }
 
 // ExternalToolOptions controls whether the weak-secret check falls back to

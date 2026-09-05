@@ -80,6 +80,12 @@ var Check = checkdef.NewCheck(Def,
 		if !result.Found {
 			return checkbase.SkippedProbeResult("not found in dictionary"), nil
 		}
+		// Recorded on pctx (not just in Extra) so downstream checks that
+		// depend on this one — e.g. fuzz, which needs a genuinely valid
+		// signature to reach a handler that verifies it — can re-sign
+		// mutated tokens with the now-known secret instead of only
+		// dropping the signature.
+		pctx.CrackedHMACSecret = result.Secret
 		return harnessx.DataResult(checkbase.ProbeResult{
 			Vulnerable: true,
 			Extra:      "secret: " + result.Secret,
