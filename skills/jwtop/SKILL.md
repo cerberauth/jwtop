@@ -6,9 +6,10 @@ description: Drive the jwtop CLI (github.com/cerberauth/jwtop) for any JWT task 
 # jwtop
 
 jwtop is a Go CLI (this repo) covering the full JWT lifecycle: `find`
-(extract a hidden token from text), `decode`, `verify`, `create`, `sign`,
-plus a security-testing layer: `crack` (analyze/probe for vulnerabilities)
-and `exploit` (apply one known technique, print the resulting token).
+(extract a hidden token from text), `decode`, `diff` (compare tokens),
+`verify`, `create`, `sign`, plus a security-testing layer: `crack`
+(analyze/probe for vulnerabilities) and `exploit` (apply one known
+technique, print the resulting token).
 
 Every command that takes `<token>` also reads it from stdin when the
 argument is omitted, so `find` composes directly into a pipeline with any
@@ -41,6 +42,7 @@ perform up front on every task:
 |---|---|
 | Pull a JWT out of a URL, JSON blob, HTML page, log file, or other text where it's buried | `find` |
 | See what's inside a token (no trust implied) | `decode` |
+| See what changed between two (or more) tokens | `diff` |
 | Confirm a token's signature is valid | `verify` |
 | Mint a brand-new token from scratch | `create` |
 | Change an existing token's algorithm/key/claims-signature | `sign` |
@@ -78,6 +80,24 @@ this for "what's in this token" questions, or as the first step before
 choosing an exploit (the `alg` field determines which techniques apply: HMAC
 weak-secret / blank-secret / kid-injection need `HS*`; hmacconfusion needs
 `RS*`/`ES*`/`PS*`; psychicsig needs `ES*` specifically).
+
+## diff — compare two or more tokens
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+Reports which header fields, claims, and the signature differ between a base
+token and each other token — no trust implied, same as `decode`. Reach for
+this over manually eyeballing two `decode` outputs whenever the user wants
+to know *what changed* between a before/after pair (a re-signed token, an
+old vs. refreshed token, tokens for two different users/environments).
+
+`--format text` (default) is for a quick human read; `--format json` gives a
+structured `{key, status: added|removed|changed, base, other}` list per
+token, for scripts and CI. Exits non-zero if any compared token differs from
+the base — usable as a "did the claims change unexpectedly" gate.
 
 ## verify — check a signature
 

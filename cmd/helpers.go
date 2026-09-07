@@ -95,3 +95,28 @@ func readTokenArg(args []string) (string, error) {
 	}
 	return token, nil
 }
+
+// readTokensArg returns two or more JWT token strings for commands that
+// compare multiple tokens. When args already contains two or more elements
+// they are returned as-is. Otherwise stdin is read, one token per line, and
+// appended to args — allowing e.g. `jwtop find --file page.html | jwtop diff`
+// to diff every token discovered by find.
+func readTokensArg(args []string) ([]string, error) {
+	tokens := append([]string{}, args...)
+	if len(tokens) < 2 {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("reading stdin: %w", err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				tokens = append(tokens, line)
+			}
+		}
+	}
+	if len(tokens) < 2 {
+		return nil, errors.New("diff requires at least two tokens: pass them as arguments or pipe multiple tokens (one per line) via stdin")
+	}
+	return tokens, nil
+}
