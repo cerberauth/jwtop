@@ -124,6 +124,7 @@ jwtop [command] [flags]
 Commands:
   find      Extract JWT tokens from text, a file, or stdin
   decode    Decode and pretty-print a JWT
+  diff      Compare two or more JWTs and show header/claims/signature differences
   verify    Verify a JWT signature
   create    Create and sign a new JWT
   sign      Re-sign an existing JWT
@@ -186,6 +187,40 @@ Claims:
 
 Signature:
 dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+---
+
+### diff
+
+Compare a base JWT against one or more other JWTs and report which header fields, claims, and the signature differ. Exits `1` if any differences are found — useful as a CI gate to catch unexpected token drift.
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+`--format text` (default) prints a human-readable summary; `--format json` prints a machine-readable report for scripts and automation.
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN
+```
+
+Output:
+
+```
+Base: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+--- Token 1: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Claims:
+    - iat: 1516239022
+    - name: "John Doe"
+    + role: "admin"
+  Signature: changed
+```
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN --format json | jq '.diffs[0].claims'
 ```
 
 ---
