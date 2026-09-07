@@ -153,6 +153,11 @@ Use only against systems you own or have explicit written permission to test.`,
 		}
 		defer cleanup()
 
+		showAllFindings, err := cobrareportx.ShowAllFindingsFromFlags(cmd)
+		if err != nil {
+			return err
+		}
+
 		reportxReporter := harnessreport.New(ctx, harnessreport.Config{
 			ToolName:        name,
 			ToolVersion:     toolVersion,
@@ -160,6 +165,7 @@ Use only against systems you own or have explicit written permission to test.`,
 			Sinks:           sinks,
 			CheckDefs:       crack.CheckDefs(),
 			BaselineCheckID: crack.BaselineCheckID,
+			ShowAllFindings: showAllFindings,
 		})
 
 		var externalEvents []checkbase.ExternalToolEvent
