@@ -81,6 +81,15 @@ choosing an exploit (the `alg` field determines which techniques apply: HMAC
 weak-secret / blank-secret / kid-injection need `HS*`; hmacconfusion needs
 `RS*`/`ES*`/`PS*`; psychicsig needs `ES*` specifically).
 
+By default, each registered header/claim field gets a short description
+appended inline as a `// comment` right next to its value (e.g.
+`"alg": "HS256",  // Algorithm — how the token is signed`), and `exp`/`nbf`/
+`iat` also show a human-readable date. A one-line expiry status prints after
+the signature (`⚠ Token is EXPIRED …` / `✓ Token is currently valid …`).
+That output isn't valid JSON (the comments aren't part of the JSON
+grammar) — pass `--raw` for plain, valid header/claims/signature JSON, e.g.
+when piping into `jq`.
+
 ## diff — compare two or more tokens
 
 ```sh

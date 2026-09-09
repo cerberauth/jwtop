@@ -16,11 +16,11 @@
 
 ---
 
-JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the full JWT lifecycle: decoding, verifying, creating, and signing tokens — plus a security-testing layer for probing and exploiting common JWT vulnerabilities.
+JWTop is a CLI for working with JSON Web Tokens. It covers the full JWT lifecycle — decoding, verifying, creating, and signing tokens — plus a security-testing layer for probing and exploiting common JWT vulnerabilities. (It's also available as a Go library — see [Library Usage](#library-usage) at the end of this README.)
 
-- **CLI** — decode, verify, create, sign, generate keys, crack, and exploit tokens from the terminal
-- **Library** — composable Go packages for each operation, designed for direct integration
-- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
+- **Inspect** — decode, diff, and verify tokens from the terminal, with human-readable claim descriptions and expiry status
+- **Mint** — create, sign, and re-sign tokens, and generate signing keys/secrets for any supported algorithm
+- **Attack** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
 
 > **Disclaimer:** The `exploit` and `crack` functionality is intended for authorised security testing, penetration testing, CTF competitions, and educational purposes only. Never test systems you do not own or have explicit written permission to test.
 
@@ -28,28 +28,27 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 
 ## Features
 
-| Feature | CLI | Library |
-|---------|:---:|:-------:|
-| Decode JWT (no verification) | ✓ | ✓ |
-| Verify signature (HMAC, RSA, ECDSA, JWKS) | ✓ | ✓ |
-| Create and sign new tokens | ✓ | ✓ |
-| Generate signing keys / secrets (RSA, EC, EdDSA, HMAC) | ✓ | ✓ |
-| Re-sign existing tokens | ✓ | ✓ |
-| Crack HMAC secret (dictionary attack, optional john/hashcat fallback) | ✓ | ✓ |
-| Probe server for JWT vulnerabilities | ✓ | ✓ |
-| alg=none bypass | ✓ | ✓ |
-| Blank secret | ✓ | ✓ |
-| Null signature | ✓ | ✓ |
-| HMAC confusion (RSA/EC → HMAC) | ✓ | ✓ |
-| Psychic signature (ECDSA r=0, s=0) | ✓ | ✓ |
-| kid injection (SQL, path traversal, command, LDAP, raw) | ✓ | ✓ |
-| JWK header injection (CVE-2018-0114) | ✓ | ✓ |
+| Feature |
+|---------|
+| Decode JWT (no verification), with claim descriptions and expiry status |
+| Verify signature (HMAC, RSA, ECDSA, JWKS) |
+| Diff two or more tokens (header/claims/signature) |
+| Create and sign new tokens |
+| Generate signing keys / secrets (RSA, EC, EdDSA, HMAC) |
+| Re-sign existing tokens |
+| Crack HMAC secret (dictionary attack, optional john/hashcat fallback) |
+| Probe server for JWT vulnerabilities |
+| alg=none bypass |
+| Blank secret |
+| Null signature |
+| HMAC confusion (RSA/EC → HMAC) |
+| Psychic signature (ECDSA r=0, s=0) |
+| kid injection (SQL, path traversal, command, LDAP, raw) |
+| JWK header injection (CVE-2018-0114) |
 
 ---
 
 ## Installation
-
-### CLI
 
 **Using `go install`:**
 
@@ -71,24 +70,6 @@ See [Docker](#docker) below for volume mounts, Compose, and CI usage.
 git clone https://github.com/cerberauth/jwtop.git
 cd jwtop
 go build -o jwtop .
-```
-
-### Library
-
-Install only the packages you need:
-
-```sh
-# Core operations (decode, verify, create, sign)
-go get github.com/cerberauth/jwtop/jwt
-
-# Token editor (re-sign and mutate existing tokens)
-go get github.com/cerberauth/jwtop/jwt/editor
-
-# Security exploit primitives
-go get github.com/cerberauth/jwtop/jwt/exploit
-
-# Server vulnerability prober
-go get github.com/cerberauth/jwtop/jwt/crack
 ```
 
 ---
@@ -162,31 +143,37 @@ done
 
 ### decode
 
-Decode and pretty-print a JWT without verifying the signature.
+Decode and pretty-print a JWT without verifying the signature. By default, recognized header/claim fields get a short description appended right next to the value as an inline `// comment`, `exp`/`nbf`/`iat` also show a human-readable date, and a one-line expiry status is printed after the signature. Pass `--raw` for plain, valid JSON with none of that — e.g. for piping into `jq`.
 
 ```sh
 jwtop decode <token>
 echo <token> | jwtop decode
+jwtop decode --raw <token>
 ```
 
 ```sh
-jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzU2ODk2MDAsInN1YiI6MTIzNDU2Nzg5MH0.jMhZZlt521nYVwt2toBcu_JmifJj9cqDFHftZvZhWOs
 ```
+
+Output:
 
 ```
 Header:
 {
-  "alg": "HS256",
-  "typ": "JWT"
+  "alg": "HS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT"  // Type — media type of the token, typically "JWT"
 }
 
 Claims:
 {
-  "sub": "1234567890"
+  "exp": 1735689600,  // Expiration Time — token must be rejected after this time — 2025-01-01T00:00:00Z (616 days ago)
+  "sub": 1234567890  // Subject — the principal the token is about
 }
 
 Signature:
-dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+jMhZZlt521nYVwt2toBcu_JmifJj9cqDFHftZvZhWOs
+
+⚠ Token is EXPIRED (expired 616 days ago)
 ```
 
 ---
@@ -671,7 +658,35 @@ Then ask your agent things like "what's in this JWT", "audit this token for vuln
 
 ---
 
+## Supported Algorithms
+
+| Family | Algorithms |
+|--------|-----------|
+| HMAC | HS256, HS384, HS512 |
+| RSA | RS256, RS384, RS512 |
+| RSA-PSS | PS256, PS384, PS512 |
+| ECDSA | ES256, ES384, ES512 |
+| None | none |
+
+---
+
 ## Library Usage
+
+Every CLI command is a thin wrapper around a composable Go package, published under this same module — install only what you need:
+
+```sh
+# Core operations (decode, verify, create, sign)
+go get github.com/cerberauth/jwtop/jwt
+
+# Token editor (re-sign and mutate existing tokens)
+go get github.com/cerberauth/jwtop/jwt/editor
+
+# Security exploit primitives
+go get github.com/cerberauth/jwtop/jwt/exploit
+
+# Server vulnerability prober
+go get github.com/cerberauth/jwtop/jwt/crack
+```
 
 ### Core operations — `jwt`
 
@@ -832,18 +847,6 @@ keyfunc, err := jwt.FetchJWKS("https://example.com/.well-known/jwks.json")
 method, err  := jwt.ParseSigningMethod("ES256")
 ok           := jwt.IsJWT(tokenString)
 ```
-
----
-
-## Supported Algorithms
-
-| Family | Algorithms |
-|--------|-----------|
-| HMAC | HS256, HS384, HS512 |
-| RSA | RS256, RS384, RS512 |
-| RSA-PSS | PS256, PS384, PS512 |
-| ECDSA | ES256, ES384, ES512 |
-| None | none |
 
 ---
 
