@@ -22,23 +22,33 @@ Output:
 ```
 Header:
 {
-  "alg": "RS256",
-  "typ": "JWT",
-  "kid": "abc123"
+  "alg": "RS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT",  // Type — media type of the token, typically "JWT"
+  "kid": "abc123"  // Key ID — hints which key was used to sign the token
 }
 
 Claims:
 {
-  "sub": "user-42",
-  "iss": "https://auth.example.com",
-  "aud": "api.example.com",
-  "exp": 1740000000,
-  "iat": 1739996400,
+  "sub": "user-42",  // Subject — the principal the token is about
+  "iss": "https://auth.example.com",  // Issuer — who created and signed the token
+  "aud": "api.example.com",  // Audience — intended recipient(s) of the token
+  "exp": 1740000000,  // Expiration Time — token must be rejected after this time — 2025-02-19T22:40:00Z (some time ago)
+  "iat": 1739996400,  // Issued At — when the token was created — 2025-02-19T21:40:00Z (some time ago)
   "roles": ["admin", "editor"]
 }
 
 Signature:
 <base64url>
+
+⚠ Token is EXPIRED (expired some time ago)
+```
+
+By default, `jwtop decode` appends a short description to every registered header/claim field it recognizes, right next to the value as an inline `// comment` — no need to cross-reference a separate table. `exp`/`nbf`/`iat` also get a human-readable date next to the raw Unix value, and a one-line expiry status prints after the signature. Custom, app-specific claims (like `roles` above) are left as-is.
+
+This annotated output isn't valid JSON (the comments aren't part of the JSON grammar). Pass `--raw` to get plain, valid JSON with no comments or expiry status — e.g. for piping into `jq` or another tool:
+
+```sh
+jwtop decode --raw $ACCESS_TOKEN
 ```
 
 ## What to look for

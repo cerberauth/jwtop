@@ -19,7 +19,14 @@ secret needed. Decoding tells you nothing about whether the token is
 authentic.
 
 If `jwtop` is on `PATH` (check `jwtop -v`; if this repo is the checkout,
-`go build -o jwtop .` first), it's the fastest path:
+`go build -o jwtop .` first), it's the fastest path. Run it *without*
+`--raw` — by default `jwtop decode` already annotates every registered
+header/claim field with a short description, renders `exp`/`nbf`/`iat` as
+human-readable dates with a relative offset, and prints a one-line expiry
+status (`⚠ Token is EXPIRED …` / `✓ Token is currently valid …`). Treat that
+as the starting point for the translation and risk-notes sections below,
+not a replacement for them — it tells you *what* each field is, not *why*
+it's risky.
 
 ```sh
 jwtop decode <token>
@@ -55,7 +62,12 @@ handed you a secret/key/JWKS *and* you actually ran the check.
 
 ## Step 2 — Present header and claims, translated
 
-Don't just dump JSON — translate it:
+`jwtop decode`'s default output already appends a one-line description
+inline next to each recognized field, plus computed dates for
+`exp`/`nbf`/`iat` — reuse those descriptions rather than re-deriving them,
+but still restate them in your own words for the fields that matter for
+this specific token, and add anything it doesn't cover (e.g. `jwk`/`jku`/
+`x5u`, custom claim contents). Don't just dump JSON — translate it:
 
 **Header** — call out each field's purpose, not just its value:
 - `alg` — the signing algorithm; this single field decides most of the risk
@@ -133,10 +145,13 @@ question — run `jwtop verify` with the signing key/secret to check").
 
 ## Where this differs from `jwtop`'s own `decode`
 
-`jwtop decode` (see the `jwtop` skill) is the raw print — header, claims,
-signature, nothing else. This skill wraps that same primitive with the
-explanation layer: translated fields, computed time deltas, and a taught
-risk narrative. If the user's ask is purely mechanical ("just show me the
-JSON"), a plain `jwtop decode` is enough and this skill's extra structure is
-overhead — use judgment on how much explanation the question actually
-calls for.
+`jwtop decode` (see the `jwtop` skill) already covers per-field
+descriptions, human-readable `exp`/`nbf`/`iat` dates, and an expiry status
+line by default — `--raw` strips that down to the bare header, claims, and
+signature. This skill goes further: it adds the risk narrative (Step 3) —
+*why* a given `alg`, header field, or claim value is dangerous, not just
+what it is — and structures the whole answer for a reader who wants a
+verdict, not a table. If the user's ask is purely mechanical ("just show me
+the JSON"), a plain `jwtop decode --raw` is enough and this skill's extra
+structure is overhead — use judgment on how much explanation the question
+actually calls for.

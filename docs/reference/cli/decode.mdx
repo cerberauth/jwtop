@@ -5,13 +5,22 @@ description: Decode and pretty-print a JWT without verifying the signature.
 
 Parse and display the header, claims, and signature of a JWT without verifying the signature. Useful for quickly inspecting a token regardless of whether you have the signing key.
 
+By default, each header/claim field that matches a registered JWT name (e.g. `alg`, `typ`, `iss`, `sub`, `exp`) gets a short description appended as an inline `// comment`, right next to its value. `exp`/`nbf`/`iat` also get a human-readable date and a relative offset ("2 days ago"). If the token has an `exp` or `nbf` claim, a one-line status is printed after the signature noting whether the token is currently expired, not yet valid, or valid.
+
 ## Usage
 
 ```sh
 jwtop decode <token>
 echo <token> | jwtop decode
 jwtop find --file page.html | jwtop decode
+jwtop decode --raw <token>
 ```
+
+## Flags
+
+| Flag    | Description                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------- |
+| `--raw` | Only print plain, valid header/claims/signature JSON, without inline field descriptions or expiry status. Useful for piping into `jq` or another tool. |
 
 ## Example
 
@@ -20,6 +29,28 @@ jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.do
 ```
 
 Output:
+
+```
+Header:
+{
+  "alg": "HS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT"  // Type — media type of the token, typically "JWT"
+}
+
+Claims:
+{
+  "sub": "1234567890"  // Subject — the principal the token is about
+}
+
+Signature:
+dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+With `--raw`, the same token instead prints plain, valid JSON with no comments or expiry status:
+
+```sh
+jwtop decode --raw eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
 
 ```
 Header:
@@ -43,6 +74,10 @@ import { Aside } from '@/components/docs';
 
 <Aside type="note">
   The signature is **not** verified. Use [`verify`](./verify) to validate a token.
+</Aside>
+
+<Aside type="note">
+  The default annotated output is not valid JSON (the `// comment` suffixes aren't part of the JSON grammar). Use `--raw` when piping into `jq` or another JSON consumer.
 </Aside>
 
 The command exits `1` if the token is structurally malformed (not a valid JWT).
