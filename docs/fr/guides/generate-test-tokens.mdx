@@ -1,0 +1,109 @@
+---
+title: Générer des tokens pour les tests
+description: Créez des JWT pour le développement, les pipelines CI et les tests d'intégration.
+---
+
+`jwtop create` vous permet de créer des JWT arbitraires depuis la ligne de commande — sans serveur ni infrastructure d'authentification nécessaire. C'est utile pour amorcer des tests d'intégration, alimenter des variables d'environnement CI ou reproduire des scénarios de production en local.
+
+## Token rapide pour une suite de tests
+
+```sh
+jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 --iss myapp --exp 1h --iat
+```
+
+Capturez la sortie dans une variable :
+
+```sh
+export TEST_TOKEN=$(jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 --exp 1h --iat)
+```
+
+## Token avec des claims personnalisés
+
+Utilisez `--claim key=value` (répétable) pour ajouter n'importe quel champ au payload :
+
+```sh
+jwtop create --alg HS256 --secret testsecret \
+  --sub user-42 \
+  --claim role=admin \
+  --claim plan=pro \
+  --claim verified=true \
+  --claim account_id=9001
+```
+
+Les valeurs sont analysées automatiquement : `9001` devient un entier, `true` devient un booléen, tout le reste reste une chaîne.
+
+## Tokens de courte durée (test d'expiration)
+
+```sh
+# Expire en 30 secondes — utile pour tester la gestion de l'expiration
+jwtop create --alg HS256 --secret testsecret --sub user-1 --exp 30s
+```
+
+## Générer une clé de signature ou un secret
+
+`jwtop genkey` produit du matériel clé avec des paramètres de force minimale imposés
+(RSA ≥ 2048 bits, secret HMAC ≥ la taille de sortie MAC, `crypto/rand` uniquement) :
+
+```sh
+# Secret HS256 aléatoire pour une suite de tests
+export TEST_SECRET=$(jwtop genkey --alg HS256)
+
+# Paire de clés RSA sur disque : test-private.pem (0600) + test-private.pem.pub (0644)
+jwtop genkey --alg RS256 --out test-private.pem
+```
+
+Consultez la [référence `genkey`](/reference/cli/genkey/) pour toutes les options.
+
+## Tokens à clé asymétrique (RS256 / ES256)
+
+```sh
+# Générer une paire de clés une seule fois
+jwtop genkey --alg RS256 --out test-private.pem
+# (ou : openssl genrsa -out test-private.pem 2048 && openssl rsa -in test-private.pem -pubout -out test-private.pem.pub)
+
+# Créer un token
+jwtop create --alg RS256 --key test-private.pem --sub user-42 --exp 1h
+
+# Le vérifier
+jwtop verify $TOKEN --key test-private.pem.pub
+```
+
+## Dans GitHub Actions
+
+import { Tabs, TabItem } from '@/components/docs';
+
+<Tabs>
+  <TabItem label="cerberauth/jwtop-action">
+
+```yaml
+- name: Generate test JWT
+  uses: cerberauth/jwtop-action@v1
+  id: jwt
+  with:
+    args: create --alg HS256 --secret ${{ secrets.TEST_SECRET }} --sub ci-user --exp 1h
+
+- name: Export token
+  run: echo "TEST_TOKEN=${{ steps.jwt.outputs.result }}" >> "$GITHUB_ENV"
+```
+
+  </TabItem>
+  <TabItem label="CLI">
+
+```yaml
+- name: Install jwtop
+  run: go install github.com/cerberauth/jwtop@latest
+
+- name: Generate test JWT
+  run: |
+    TOKEN=$(jwtop create --alg HS256 \
+      --secret "$TEST_SECRET" \
+      --sub ci-user --exp 1h)
+    echo "TEST_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+  env:
+    TEST_SECRET: ${{ secrets.TEST_SECRET }}
+```
+
+  </TabItem>
+</Tabs>

@@ -1,0 +1,83 @@
+---
+title: decode
+description: Décode et affiche un JWT de façon lisible sans vérifier la signature.
+---
+
+Analyse et affiche l'en-tête, les claims et la signature d'un JWT sans vérifier la signature. Pratique pour inspecter rapidement un token, que vous disposiez ou non de la clé de signature.
+
+Par défaut, chaque champ d'en-tête/claim correspondant à un nom JWT enregistré (ex. `alg`, `typ`, `iss`, `sub`, `exp`) reçoit une courte description ajoutée en `// commentaire` en ligne, juste à côté de sa valeur. `exp`/`nbf`/`iat` reçoivent aussi une date lisible et un décalage relatif (« il y a 2 jours »). Si le token possède un claim `exp` ou `nbf`, un statut d'une ligne est affiché après la signature indiquant si le token est actuellement expiré, pas encore valide, ou valide.
+
+## Utilisation
+
+```sh
+jwtop decode <token>
+echo <token> | jwtop decode
+jwtop find --file page.html | jwtop decode
+jwtop decode --raw <token>
+```
+
+## Options
+
+| Option    | Description                                                                                            |
+| ------- | ------------------------------------------------------------------------------------------------------- |
+| `--raw` | N'affiche que le JSON brut et valide de l'en-tête/des claims/de la signature, sans description en ligne ni statut d'expiration. Pratique pour un pipe vers `jq` ou un autre outil. |
+
+## Exemple
+
+```sh
+jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+Sortie :
+
+```
+Header:
+{
+  "alg": "HS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT"  // Type — media type of the token, typically "JWT"
+}
+
+Claims:
+{
+  "sub": "1234567890"  // Subject — the principal the token is about
+}
+
+Signature:
+dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+Avec `--raw`, le même token affiche à la place du JSON brut et valide, sans commentaires ni statut d'expiration :
+
+```sh
+jwtop decode --raw eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+```
+Header:
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+
+Claims:
+{
+  "sub": "1234567890"
+}
+
+Signature:
+dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+```
+
+import { Aside } from '@/components/docs';
+
+## Notes
+
+<Aside type="note">
+  La signature n'est **pas** vérifiée. Utilisez [`verify`](./verify) pour valider un token.
+</Aside>
+
+<Aside type="note">
+  La sortie annotée par défaut n'est pas du JSON valide (les suffixes `// commentaire` ne font pas partie de la grammaire JSON). Utilisez `--raw` pour un pipe vers `jq` ou un autre consommateur JSON.
+</Aside>
+
+La commande retourne `1` si le token est structurellement malformé (pas un JWT valide).

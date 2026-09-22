@@ -1,0 +1,39 @@
+---
+title: Vulnérabilités JWT
+description: Découvrez les vulnérabilités JWT courantes et comment JWTop vous aide à les identifier et à les exploiter.
+---
+
+import { Card, CardGrid, LinkCard } from '@/components/docs';
+
+Les JSON Web Tokens (JWT) sont un standard très répandu pour représenter des claims entre deux parties. Cependant, une implémentation incorrecte de la vérification des JWT peut entraîner plusieurs vulnérabilités de sécurité critiques.
+
+JWTop fournit des outils intégrés pour tester ces vulnérabilités automatiquement ou manuellement.
+
+## Vulnérabilités courantes
+
+<CardGrid>
+  <LinkCard title="Algorithme None" description="Accepter des tokens sans signature." href="./jwt-alg-none/" />
+  <LinkCard title="Secret vide" description="Tokens signés avec un secret HMAC vide." href="./jwt-blank-secret/" />
+  <LinkCard title="Confusion HMAC" description="Utiliser une clé publique comme secret HMAC." href="./jwt-hmac-confusion/" />
+  <LinkCard title="Injection KID" description="Injecter des payloads via l'en-tête Key ID." href="./jwt-kid-injection/" />
+  <LinkCard title="Injection d'en-tête JWK" description="Faire confiance à une clé publique auto-signée intégrée dans le token." href="./jwt-jwk-injection/" />
+  <LinkCard title="Injection d'en-tête JKU" description="Récupérer et faire confiance à un JWKS depuis une URL contrôlée par l'attaquant." href="./jwt-jku-injection/" />
+  <LinkCard title="Injection d'en-tête X5C" description="Faire confiance à un certificat auto-signé intégré dans le token." href="./jwt-x5c-injection/" />
+  <LinkCard title="Injection d'en-tête X5U" description="Récupérer et faire confiance à un certificat depuis une URL contrôlée par l'attaquant." href="./jwt-x5u-injection/" />
+  <LinkCard title="Signature nulle" description="Supprimer la signature du token." href="./jwt-null-signature/" />
+  <LinkCard title="Signature psychique" description="Des vérificateurs ECDSA acceptant une signature à zéro (r=0, s=0)." href="./jwt-psychic-signature/" />
+  <LinkCard title="Secret faible" description="Force brute sur des secrets HMAC courants." href="./jwt-weak-secret/" />
+  <LinkCard title="Signature non vérifiée" description="Contourner entièrement la vérification de signature." href="./jwt-signature-not-verified/" />
+  <LinkCard title="Attaque par relais inter-services" description="Rejouer des tokens provenant d'autres projets." href="./jwt-token-cross-service-relay-attack/" />
+  <LinkCard title="Fuzzing des claims" description="Des claims mutés (confusion de type, chaînes surdimensionnées, caractères spéciaux, null) faisant planter le serveur ou révélant une stack trace." href="./jwt-claim-fuzzing/" />
+</CardGrid>
+
+## Comment tester
+
+Le moyen le plus rapide de tester un serveur en direct contre toutes ces vulnérabilités en une fois est d'utiliser la commande `crack` :
+
+```bash
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+Pour plus de détails sur chaque vulnérabilité, cliquez sur les cartes ci-dessus.

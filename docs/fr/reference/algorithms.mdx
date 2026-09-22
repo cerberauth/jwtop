@@ -1,0 +1,67 @@
+---
+title: Algorithmes supportés
+description: Liste complète des algorithmes de signature JWT supportés par JWTop.
+---
+
+JWTop supporte toutes les familles d'algorithmes définies par la [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518).
+
+## Tableau des algorithmes
+
+| Famille | Algorithmes | Type de clé |
+|---|---|---|
+| HMAC | `HS256`, `HS384`, `HS512` | Secret partagé (`[]byte`) |
+| RSA PKCS#1 v1.5 | `RS256`, `RS384`, `RS512` | Clé privée/publique RSA |
+| RSA-PSS | `PS256`, `PS384`, `PS512` | Clé privée/publique RSA |
+| ECDSA | `ES256`, `ES384`, `ES512` | Clé privée/publique EC |
+| EdDSA | `EdDSA` | Clé privée/publique Ed25519 |
+| Aucun | `none` | Aucune clé requise |
+
+`EdDSA` (Ed25519) est défini par la [RFC 8037](https://www.rfc-editor.org/rfc/rfc8037). Il est supporté par `create`, `sign`, `verify` et `genkey`.
+
+## Guide de choix d'algorithme
+
+**Choisissez HMAC (HS256 / HS384 / HS512)** si :
+- Le même service émet et vérifie les tokens.
+- La simplicité et la performance sont prioritaires.
+- Le secret peut être stocké de façon sécurisée des deux côtés.
+
+**Choisissez RSA ou EC (RS256, ES256, …)** si :
+- Plusieurs services doivent vérifier les tokens sans accès à la clé de signature.
+- Vous publiez un endpoint JWKS pour la découverte de clés.
+- Vous devez pouvoir faire tourner les clés sans partager de secret.
+
+**ES256 vs RS256** : les clés ECDSA sont plus petites et les opérations plus rapides à niveau de sécurité équivalent. Préférez ES256 pour les nouveaux déploiements.
+
+**PS256 vs RS256** : RSA-PSS (`PS*`) résiste mieux à certaines attaques théoriques que PKCS#1 v1.5 (`RS*`). Les deux restent acceptables en pratique.
+
+## Générer des clés
+
+La commande intégrée [`genkey`](/reference/cli/genkey/) génère des clés
+avec des paramètres de force minimale imposés :
+
+```sh
+jwtop genkey --alg HS256                        # secret HMAC (base64url)
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+jwtop genkey --alg ES256 --out es256
+jwtop genkey --alg EdDSA --out ed25519
+```
+
+Ou utilisez des outils standards pour générer des paires de clés PEM :
+
+```sh
+# RSA 2048 bits
+openssl genrsa -out private.pem 2048
+openssl rsa -in private.pem -pubout -out public.pem
+
+# EC P-256 (pour ES256)
+openssl ecparam -name prime256v1 -genkey -noout -out private.pem
+openssl ec -in private.pem -pubout -out public.pem
+
+# EC P-384 (pour ES384)
+openssl ecparam -name secp384r1 -genkey -noout -out private.pem
+openssl ec -in private.pem -pubout -out public.pem
+
+# Ed25519 (pour EdDSA)
+openssl genpkey -algorithm ed25519 -out private.pem
+openssl pkey -in private.pem -pubout -out public.pem
+```

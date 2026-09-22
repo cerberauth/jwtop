@@ -1,0 +1,101 @@
+---
+title: Injection d'en-tête JKU JWT
+description: L'injection d'en-tête JKU JWT survient lorsqu'un serveur récupère l'URL de l'en-tête `jku` du token et fait confiance au JWKS renvoyé sans valider l'URL contre une liste d'autorisation, permettant à un attaquant de forger des tokens vérifiés avec sa propre clé hébergée.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/346.html">CWE-346: Origin Validation Error</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/194.html">CAPEC-194: Fake the Source of Data</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Le champ d'en-tête JWT `jku` (RFC 7515 §4.1.2) indique au vérificateur où récupérer le JWK Set (JWKS) contenant la clé nécessaire pour vérifier la signature du token. Il existe pour qu'un vérificateur puisse résoudre dynamiquement la clé publique d'un signataire via une URL au lieu de la stocker à l'avance. Les serveurs qui déréférencent `jku` sans le vérifier contre un ensemble connu et épinglé d'hôtes de confiance récupéreront et feront confiance à une clé provenant de *n'importe quelle* URL fournie par l'attaquant — y compris une URL que l'attaquant contrôle.
+
+Un attaquant qui exploite cette faille de confiance génère sa propre paire de clés, héberge un document JWKS contenant la partie publique à une URL qu'il contrôle, pointe l'en-tête `jku` du token vers cette URL, et signe le token avec la clé privée correspondante. Comme le serveur récupère et utilise la clé fournie par l'attaquant pour vérifier la signature fournie par l'attaquant, la vérification réussit toujours — pour n'importe quels claims choisis par l'attaquant.
+
+C'est le même type de faille de confiance que l'[injection d'en-tête JWK](/docs/jwtop/vulnerabilities/jwt-jwk-injection) (CVE-2018-0114) — la différence est l'emplacement de la clé malveillante : embarquée directement dans le token (`jwk`) contre récupérée depuis une URL hébergée par l'attaquant (`jku`).
+
+## Exemple
+
+Voici un JWT valide signé en RS256 avec la vraie clé du serveur :
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.<signature>
+```
+
+L'attaquant génère une nouvelle paire de clés RSA, héberge un JWKS avec la clé publique à une URL qu'il contrôle, définit `jku` (et `kid` en correspondance), et re-signe avec la partie privée :
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "jku-injection",
+  "jku": "https://attacker.example/.well-known/jwks.json"
+}
+```
+
+Un serveur vulnérable récupère `https://attacker.example/.well-known/jwks.json`, en extrait la clé publique, vérifie la signature avec (ce qui réussit — l'attaquant a signé avec la partie privée correspondante), et traite le token comme authentique. Restreindre `jku` à `https` ou exiger qu'il corresponde à l'hôte émetteur du token n'aide pas si l'attaquant peut héberger du contenu sur un domaine autorisé (ex. via une redirection ouverte, un CDN partagé, ou un détournement de sous-domaine).
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT JKU Header Injection », utilisez la commande `crack` avec `--jku-server-addr` réglé sur une adresse d'écoute accessible par la cible — jwtop démarre un serveur JWKS local jetable, pointe l'en-tête `jku` du token forgé vers celui-ci, et sonde la cible :
+
+```bash
+jwtop crack [token] --url [url] --jku-server-addr 0.0.0.0:8089
+```
+
+L'adresse d'écoute doit être accessible par le serveur testé — utilisez une interface/un port public (ou un tunnel tel que `ngrok`) lors du test d'une cible distante plutôt qu'une adresse loopback. La vérification est ignorée lorsque `--jku-server-addr` est omis, et ne s'exécute que contre les tokens RSA/ECDSA (`RS*`/`ES*`/`PS*`) — un serveur qui fait confiance à une clé `jku` récupérée n'a aucune raison de le faire pour des tokens signés en HMAC.
+
+Pour générer un token autonome avec un en-tête `jku` pointant vers une URL JWKS que vous contrôlez déjà, utilisez la commande `exploit jkuinjection` :
+
+<Tabs>
+  <TabItem label="Générer une nouvelle paire de clés">
+```bash
+jwtop exploit jkuinjection [token] --url https://attacker.example/.well-known/jwks.json
+```
+  </TabItem>
+  <TabItem label="Choisir l'algorithme">
+```bash
+jwtop exploit jkuinjection [token] --alg ES256 --url https://attacker.example/.well-known/jwks.json
+```
+  </TabItem>
+  <TabItem label="Re-signer avec une clé existante">
+```bash
+jwtop exploit jkuinjection [token] --key /path/to/private.pem --url https://attacker.example/.well-known/jwks.json
+```
+  </TabItem>
+</Tabs>
+
+`exploit jkuinjection` se contente de définir l'en-tête et de signer le token — il n'héberge pas le JWKS lui-même, puisque `--url` peut pointer vers une infrastructure que vous contrôlez déjà. C'est l'option `--jku-server-addr` de la commande `crack` qui sert aussi le JWKS.
+
+## Quel est l'impact ?
+
+Une attaque par injection JKU réussie permet à un attaquant de forger un JWT que le serveur accepte comme légitime, sans aucune connaissance de la clé de signature réelle du serveur. Cela peut mener à un contournement total de l'authentification, une élévation de privilèges, ou une usurpation d'identité de n'importe quel utilisateur du système. Elle peut aussi servir de primitive de Server-Side Request Forgery (SSRF), puisque le serveur effectue une requête HTTP sortante vers une URL choisie par l'attaquant.
+
+## Comment corriger ?
+
+- **Ne résolvez jamais la clé de vérification à partir du token lui-même.** Ignorez les champs d'en-tête `jku` (et `jwk`, `x5u`) lors de la vérification — recherchez la clé côté serveur par `kid` dans un jeu de clés épinglé ou votre propre endpoint JWKS.
+- **Si le support de `jku` est incontournable**, restreignez-le à une liste stricte d'URL JWKS de confiance et pleinement qualifiées — jamais une simple correspondance sur un suffixe de domaine — et ne suivez jamais les redirections lors de la récupération.
+- **Épinglez l'algorithme et la ou les clés attendues par émetteur** afin qu'un token ne puisse pas dicter quelle clé ou famille d'algorithme le vérifie.
+- **Traitez la récupération de `jku` comme une requête sortante vers une destination non fiable** : bloquez les plages d'IP internes/privées pour empêcher qu'elle serve de vecteur SSRF contre des services internes.

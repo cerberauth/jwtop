@@ -1,0 +1,78 @@
+---
+title: Signature JWT non vérifiée
+description: Une vulnérabilité où le serveur accepte des JWT sans vérifier leur signature cryptographique, permettant aux attaquants de forger des tokens arbitraires.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/475.html">CAPEC-475: Signature Spoofing by Improper Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+La vulnérabilité « JWT Signature Not Verified » survient lorsqu'un serveur accepte un JWT dont la signature a été créée avec une clé complètement différente (aléatoire), voire avec une signature corrompue. Si le serveur renvoie une réponse de succès (ex. 200 OK) pour un token à la signature invalide, cela signifie qu'il ne vérifie pas du tout la signature — un attaquant peut donc fabriquer n'importe quel payload de son choix et le serveur l'acceptera.
+
+## Exemple
+
+JWTop prend votre token valide, en extrait l'algorithme et les claims, puis le re-signe avec une signature invalide ou aléatoire.
+
+**Token valide original** (signé avec la vraie clé privée) :
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwicm9sZSI6InVzZXIifQ.<valid_signature>
+```
+
+**Token d'attaque** (mêmes claims, signature invalide) :
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJ1c2VyMTIzIiwicm9sZSI6InVzZXIifQ.invalidsignature
+```
+
+Si les deux requêtes renvoient un code de statut de succès, le serveur ne vérifie pas la signature.
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT Signature Not Verified », vous pouvez utiliser la commande `crack` :
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+JWTop détecte automatiquement si le serveur accepte une signature invalide en envoyant une sonde avec une signature corrompue pour établir une référence.
+
+## Quel est l'impact ?
+
+Si un attaquant peut forger des JWT arbitraires sans avoir besoin de la clé de signature, il peut :
+
+- **Accéder à n'importe quelle ressource** : l'attaquant peut prétendre être n'importe quel utilisateur, y compris des utilisateurs pour lesquels il n'a pas d'identifiants.
+- **Contourner tous les contrôles d'accès basés sur JWT** : l'ensemble du système d'authentification est effectivement désactivé.
+- **Usurper n'importe quel utilisateur** : changer le claim `sub` ou `user_id` vers n'importe quelle valeur.
+- **Élever ses privilèges** : modifier le claim `role` ou `permissions` pour obtenir un accès administrateur.
+
+## Comment corriger ?
+
+1. **Vérifiez toujours les signatures** : utilisez une bibliothèque JWT de confiance et bien maintenue, et appelez la fonction de vérification — ne décodez jamais sans vérifier.
+
+2. **Fournissez la bonne clé** : passez explicitement la clé publique attendue (pour RS/ES) ou le secret (pour HS) ; ne laissez jamais la bibliothèque auto-détecter la clé depuis l'en-tête du token.
+
+3. **Épinglez les algorithmes autorisés** : configurez votre bibliothèque pour n'accepter qu'un ensemble spécifique d'algorithmes (ex. `["RS256"]`). Cela prévient les attaques par confusion d'algorithme en plus du contournement de signature.
+
+4. **Utilisez des algorithmes asymétriques pour les systèmes distribués** : RS256 et ES256 permettent à n'importe quel service de vérifier les tokens avec la clé publique, tandis que seul l'émetteur détient la clé privée.
