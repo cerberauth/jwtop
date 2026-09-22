@@ -1,0 +1,87 @@
+---
+title: Fuzzing des claims JWT
+description: Une vulnérabilité où un serveur plante, révèle une stack trace, ou se comporte de façon erratique lorsqu'un claim JWT contient un type inattendu, une chaîne surdimensionnée, des caractères spéciaux, ou une valeur null.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Moyenne</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/20.html">CWE-20: Improper Input Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/28.html">CAPEC-28: Fuzzing</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/">OWASP API8:2023 Security Misconfiguration</a>
+    </td>
+  </tr>
+</table>
+
+Les API qui décodent les claims d'un JWT dans des champs typés (structs, ORM, variables de template, paramètres SQL, ...) ne valident pas toujours le type ou la longueur d'un claim avant de l'utiliser. Si un claim normalement attendu comme une courte chaîne arrive sous forme de nombre, de tableau, de chaîne surdimensionnée, ou de `null`, le serveur peut lever une exception non gérée, révéler une stack trace, ou répondre avec une taille très différente — autant de signes que le claim a été consommé sans validation, et un point de départ pour une exploitation plus poussée (déni de service, divulgation d'information, ou pire si la valeur atteint un moteur de template, une requête SQL, ou un shell).
+
+Cette vulnérabilité diffère des autres documentées ici : ce n'est pas un exploit précis mais une passe de fuzzing — chaque claim est muté avec une série de valeurs limites, et chaque réponse est comparée à une réponse de référence pour repérer les anomalies.
+
+## Exemple
+
+JWTop mute chaque valeur de claim à tour de rôle, en laissant les autres claims et l'en-tête inchangés, et supprime la signature (puisqu'elle ne correspond plus au payload muté) :
+
+**Claim d'origine** : `"sub": "user123"`
+
+**Confusion de type** : `"sub": ["user123"]`, `"sub": 1337`, `"sub": {"a":"b"}`, `"sub": true`
+
+**Chaîne surdimensionnée** : `"sub": "AAAA...` (10 000 caractères par défaut)
+
+**Caractères spéciaux** : `"sub": "' OR '1'='1"`, `"sub": "<script>alert(1)</script>"`, `"sub": "../../../../etc/passwd"`, `"sub": "${7*7}{{7*7}}"`, ...
+
+**Valeur null** : `"sub": null`
+
+Chaque token muté est envoyé à la cible et la réponse est comparée à la réponse de référence capturée à partir du token original, non muté. Une mutation est signalée lorsque :
+
+- le statut de la réponse est `5xx`
+- le corps de la réponse correspond à une signature connue de stack trace/exception non gérée (ex. `Traceback (most recent call last)`, `panic: ... goroutine`, `NullPointerException`, `Whitelabel Error Page`, ...)
+- la longueur du corps de la réponse diffère de la référence de plus de 50 %
+
+## Comment tester ?
+
+`fuzz` est désactivé par défaut — activez-le avec `--fuzz` en plus de l'ensemble des vérifications fixes :
+
+```bash
+jwtop crack [token] --url [url] --fuzz
+```
+
+Utilisez `--fuzz-max-string-len` pour changer la longueur du payload de chaîne surdimensionnée (par défaut `10000`) :
+
+```bash
+jwtop crack [token] --url [url] --fuzz --fuzz-max-string-len 100000
+```
+
+## Quel est l'impact ?
+
+- **Déni de service** : une exception non gérée sur chaque requête portant un claim malformé peut faire planter un worker ou épuiser les ressources sur une valeur surdimensionnée.
+- **Divulgation d'information** : une stack trace révélée peut exposer des chemins de fichiers internes, des versions de framework/bibliothèque, un schéma de base de données, ou d'autres détails utiles pour des attaques ultérieures.
+- **Injection en aval** : si une valeur de claim atteint une requête SQL, une commande shell, ou un moteur de template sans désinfection, les payloads à caractères spéciaux utilisés ici sont un point de départ pour de l'injection SQL, de l'injection de commande, ou de l'injection de template côté serveur.
+
+## Comment corriger ?
+
+1. **Validez les types et longueurs des claims** après le décodage, avant de les utiliser — ne présumez pas qu'un claim censé être une courte chaîne en est réellement une.
+
+2. **Utilisez un schéma ou une struct typée** pour décoder les claims (de nombreuses bibliothèques JWT le supportent) afin qu'un type inattendu échoue proprement au décodage au lieu de se propager dans la logique applicative.
+
+3. **Renvoyez des réponses d'erreur génériques** pour toute entrée malformée — ne laissez jamais une stack trace ou un message d'exception atteindre le client.
+
+4. **Limitez la taille des claims** au niveau de la passerelle API ou du middleware (ex. rejetez les requêtes où le token ou un claim individuel dépasse une longueur raisonnable) avant qu'ils n'atteignent le code applicatif.
+
+5. **Désinfectez/paramétrez** toute valeur de claim utilisée dans une requête SQL, une commande shell, un template, ou une ligne de log, au même titre que n'importe quelle autre entrée utilisateur non fiable.

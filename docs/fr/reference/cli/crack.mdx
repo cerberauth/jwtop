@@ -1,0 +1,227 @@
+---
+title: crack
+description: Analyse un JWT à la recherche de vulnérabilités — vérifications cryptographiques hors ligne ou sonde de serveur en direct.
+---
+
+import { Aside } from '@/components/docs';
+
+Analyse un token JWT à la recherche de vulnérabilités connues. Sans `--url`, l'outil s'exécute en **mode hors ligne** et effectue de pures vérifications cryptographiques, sans aucune requête réseau. Avec `--url`, chaque technique d'exploitation sonde le serveur en direct et rapporte si elle est acceptée.
+
+<Aside type="caution">
+  À utiliser uniquement contre des systèmes que vous possédez ou pour lesquels vous avez une autorisation écrite explicite de test.
+</Aside>
+
+## Utilisation
+
+```sh
+# Hors ligne — aucune URL requise
+jwtop crack <token> [flags]
+
+# En ligne — sonde un serveur en direct
+jwtop crack <token> --url <url> [flags]
+
+# Token depuis stdin
+echo <token> | jwtop crack --url <url>
+```
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--url` | URL cible à sonder (omettre pour une analyse hors ligne) |
+| `--expected-status` | Code de statut HTTP indiquant un exploit réussi (par défaut `200`) |
+| `--key` | Chemin ou URL vers un fichier de clé publique PEM pour la sonde `hmacconfusion` |
+| `--wordlist` | Chemin vers un fichier de secrets candidats, un par ligne |
+| `--secret` | Secret candidat explicite pour la force brute (répétable) |
+| `--workers` | Nombre de workers concurrents pour la force brute sur le secret (par défaut `8`) |
+| `--kid-sql-table` | Nom de table pour le payload d'injection SQL via `kid` (par défaut `tokens`) |
+| `--kid-path` | Chemin de fichier pour le payload de path traversal via `kid` (par défaut `/dev/null`) |
+| `--token-in` | Où placer le JWT exploité : `header`, `cookie`, `query`, ou `body` (par défaut `header`) |
+| `--token-name` | Nom du header/cookie/paramètre de requête/champ de formulaire pour le JWT (par défaut `Authorization` pour un header, `token` sinon) |
+| `--token-prefix` | Préfixe de la valeur avant le token, ex. `Bearer ` (par défaut `Bearer ` uniquement pour le header Authorization par défaut) |
+| `--john` | Se rabat sur l'outil externe `john` pour le cracking du secret HMAC si l'attaque par dictionnaire intégrée ne le trouve pas |
+| `--john-path` | Chemin vers le binaire `john` — le passer implique `--john` ; résolu via `PATH` si omis |
+| `--hashcat` | Se rabat sur l'outil externe `hashcat` pour le cracking du secret HMAC si l'attaque par dictionnaire intégrée ne le trouve pas |
+| `--hashcat-path` | Chemin vers le binaire `hashcat` — le passer implique `--hashcat` ; résolu via `PATH` si omis |
+| `--crack-timeout` | Durée maximale d'exécution de `john`/`hashcat` avant arrêt (par défaut `5m`) |
+| `--fuzz` | Active le fuzzing par mutation de claims (confusion de type, chaînes surdimensionnées, caractères spéciaux, null) et signale les réponses qui divergent de la référence — nécessite `--url` |
+| `--fuzz-max-string-len` | Longueur du payload de chaîne surdimensionnée utilisé par `--fuzz` (par défaut `10000`) |
+
+## Outils de cracking externes
+
+`--john`/`--hashcat` sont optionnels et désactivés par défaut — l'attaque par dictionnaire intégrée (une force brute en Go pur, en mémoire) s'exécute toujours en premier. Si elle ne trouve pas le secret et que l'un de ces flags est activé, jwtop délègue à l'outil correspondant avec la même liste de candidats.
+
+- **Auto-détection** : à chaque invocation, jwtop vérifie si `john`/`hashcat` sont présents dans le `PATH`. Si un outil est trouvé mais non activé (ni son flag booléen ni son flag `-path` n'a été passé), un avertissement d'une ligne est affiché sur stderr, ex. `[i] hashcat detected on PATH — pass --hashcat (or --hashcat-path) to use it as a fallback for faster HMAC secret cracking`.
+- **Timeouts** : si un outil ne termine pas dans le délai `--crack-timeout` (par défaut `5m`), il est arrêté et jwtop affiche un avertissement explicite — `[!] john timed out after 5m0s without finding the secret — try a larger --crack-timeout or a smaller wordlist` — plutôt que de rapporter silencieusement « not found ».
+- **Télémétrie** : l'utilisation de chaque outil (succès/non trouvé/erreur) et les événements de détection sont rapportés de la même façon que toute autre vérification, avec en plus une trace par invocation enregistrant le code de sortie, la version de l'outil, le format/mode, le nombre de candidats et (pour hashcat) un résumé du backend de calcul — jamais le token ni le secret trouvé.
+- **Docker** : l'image publiée est `distroless` (pas de shell, pas de gestionnaire de paquets) — `--john`/`--hashcat` ne peuvent pas fonctionner dedans. Exécutez jwtop sur l'hôte, ou construisez une image personnalisée avec ces outils installés.
+- **Installer les outils** (Debian/Ubuntu) :
+
+  ```sh
+  # hashcat + un runtime OpenCL CPU (hashcat renvoie l'erreur « No devices
+  # found » sur les machines sans GPU/pilote OpenCL du fabricant, sinon)
+  sudo apt update
+  sudo apt install hashcat pocl-opencl-icd
+  hashcat -I   # vérifie qu'un device utilisable est listé
+
+  # john the ripper — `apt install john` seul ne suffit PAS : c'est John
+  # « core » 1.8.0, qui n'a pas les formats HMAC-SHA256/384/512 requis par
+  # cette fonctionnalité. Installez plutôt le build communautaire « jumbo »
+  # via snap :
+  sudo snap install john-the-ripper
+  john --list=formats | grep -i hmac   # vérifie que les formats HMAC sont présents
+  ```
+
+  Le paquet snap s'installe en confinement strict (seuls les plugs `home` et `removable-media` sont accordés — pas d'accès à `/tmp`), c'est pourquoi jwtop conserve les fichiers de travail temporaires de john sous `$HOME` plutôt que dans le répertoire temporaire système, pour rester compatible.
+
+## Mode hors ligne
+
+Lorsque `--url` est omis, les vérifications se limitent à ce qui peut être déterminé à partir du token lui-même — aucun appel réseau n'est effectué.
+
+| Vérification | Ce qui est détecté |
+|---|---|
+| `algnone` | Le token utilise déjà `alg=none` (quelle que soit la casse) |
+| `blanksecret` | La signature du token se vérifie avec un secret HMAC vide |
+| `nullsig` | Le token a un segment de signature vide |
+| `weaksecret` | Secret de signature HMAC trouvé par force brute sur dictionnaire |
+
+Les vérifications nécessitant un serveur en direct (`hmacconfusion`, `psychicsig`, `kidinjection`, `jwkinjection`, `no_verification`, et les variantes de casse d'`algnone`) sont ignorées avec un message explicatif.
+
+## Mode en ligne
+
+Lorsque `--url` est fourni, un token modifié est envoyé en `Authorization: Bearer <token>` pour chaque technique. Une technique est **VULNERABLE** lorsque le serveur répond avec un code de statut différent de la référence (le statut retourné pour un JWT volontairement invalide).
+
+`--expected-status` définit la référence manuellement. Si omis, une première requête avec un token invalide la détecte automatiquement.
+
+### Placer le JWT ailleurs
+
+Authorization: Bearer n'est que la valeur par défaut. Si la cible lit le JWT depuis un cookie, un paramètre de requête, ou un corps encodé en formulaire, utilisez `--token-in`, `--token-name`, et `--token-prefix` pour vous adapter — chaque requête de sonde (y compris la détection automatique de la référence) suit le même placement.
+
+```sh
+# Cookie
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Paramètre de requête
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Corps POST encodé en formulaire
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+
+# Header personnalisé
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
+```
+
+`--token-in body` envoie la sonde en requête POST ; tout autre emplacement conserve le GET par défaut.
+
+| Technique | Description |
+|---|---|
+| `algnone` (×4) | `alg=none` avec quatre variantes de casse courantes |
+| `blanksecret` | Re-signature avec un secret HMAC vide |
+| `nullsig` | Suppression complète du segment de signature |
+| `hmacconfusion` | Re-signature en utilisant une clé publique comme secret HMAC (ignoré sans `--key`) |
+| `psychicsig` | Re-signature de tokens ECDSA avec une signature à zéro (r=0, s=0) — CVE-2022-21449 (ignoré pour les algorithmes non-ECDSA) |
+| `kidinjection (sql)` | Injection SQL via le header `kid` |
+| `kidinjection (path)` | Path traversal via le header `kid` |
+| `jwkinjection` | JWK auto-signé embarqué dans le header et accepté par le serveur — CVE-2018-0114 (ignoré pour les algorithmes non asymétriques) |
+| `weaksecret` | Force brute sur dictionnaire du secret de signature HMAC |
+| `fuzz` | Fuzzing par mutation de claims — activable via `--fuzz`, ignoré sinon |
+
+### Fuzzing par mutation de claims (`--fuzz`)
+
+`--fuzz` complète les techniques fixes ci-dessus par une passe de fuzzing : chaque claim est muté à tour de rôle (confusion de type, chaîne surdimensionnée, caractères spéciaux, null explicite) et chaque réponse mutée est comparée à une réponse de référence capturée à partir du token original, non muté — et non la référence de token invalide utilisée par les autres vérifications. Une mutation est signalée lorsque la réponse diverge :
+
+- un code de statut `5xx`
+- le corps correspond à une signature connue de stack trace/exception non gérée
+- la longueur du corps diffère de la référence de plus de 50 %
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz --fuzz-max-string-len 100000
+```
+
+Voir [Fuzzing des claims JWT](/vulnerabilities/jwt-claim-fuzzing/) pour plus de détails.
+
+## Format de sortie
+
+```
+# Hors ligne
+[+] Blank Secret                  CONFIRMED
+[ ] Algorithm None (none)         OK
+[-] HMAC Confusion                skipped (requires live server)
+
+# En ligne
+[+] algnone (none)              200  VULNERABLE
+[ ] blanksecret                 401
+[-] hmacconfusion               skipped (no public key provided)
+[+] weaksecret                  200  VULNERABLE  (secret: hunter2)
+```
+
+- `[+]` — vulnérabilité confirmée (hors ligne) ou serveur ayant accepté l'exploit (en ligne)
+- `[ ]` — non vulnérable
+- `[-]` — technique ignorée (prérequis manquant ou mode hors ligne)
+- `[!]` — une erreur réseau ou de token s'est produite
+
+## Exemples
+
+**Hors ligne — détecter des faiblesses cryptographiques**
+
+```sh
+jwtop crack $TOKEN
+```
+
+**Hors ligne — cracker le secret de signature avec une wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt --secret mysecret --secret topsecret
+```
+
+**Hors ligne — se rabattre sur hashcat pour une grande wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/rockyou.txt --hashcat --crack-timeout 30m
+```
+
+**En ligne — sonder avec le dictionnaire de secrets intégré**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+**En ligne — fournir une clé publique pour la sonde hmacconfusion**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key /path/to/public.pem
+
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key https://example.com/public.pem
+```
+
+**En ligne — utiliser une wordlist personnalisée et des valeurs explicites**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --wordlist /path/to/secrets.txt \
+  --secret mysecret --secret topsecret
+```
+
+**En ligne — attendre un statut de succès différent (ex. 403 signifie authentifié mais non autorisé)**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --expected-status 403
+```
+
+**En ligne — ajouter le fuzzing par mutation de claims à l'ensemble des vérifications fixes**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
+```
+
+## Codes de sortie
+
+| Code | Signification |
+|---|---|
+| `0` | Au moins une vulnérabilité trouvée |
+| `1` | Aucune vulnérabilité trouvée |

@@ -1,0 +1,88 @@
+---
+title: diff
+description: Compare deux tokens JWT ou plus et affiche les différences d'en-tête, de claims et de signature.
+---
+
+import { Aside } from '@/components/docs';
+
+Compare un JWT de référence à un ou plusieurs autres JWT et indique quels champs d'en-tête, claims et signature diffèrent. Pratique pour repérer un écart inattendu entre deux tokens — par exemple avant/après une re-signature, ou pour comparer des tokens émis pour des utilisateurs ou environnements différents.
+
+## Utilisation
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+Le premier token sert de référence ; chaque token suivant lui est comparé. Les tokens peuvent être passés en arguments positionnels, ou lus depuis stdin un par ligne lorsque moins de deux sont donnés en argument — ce qui permet de chaîner `diff` directement avec [`find`](./find).
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--format` | Format de sortie : `text` (lisible, par défaut) ou `json` (exploitable par script/CI) |
+
+## Exemples
+
+**Format lisible (par défaut)**
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN
+```
+
+Sortie :
+
+```
+Base: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+--- Token 1: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Claims:
+    - iat: 1516239022
+    - name: "John Doe"
+    + role: "admin"
+  Signature: changed
+```
+
+Chaque champ modifié est préfixé par `+` (ajouté sur le token comparé), `-` (supprimé), ou `~` (valeur modifiée, affichée sous la forme `ancienne -> nouvelle`). Un token identique à la référence affiche `(identical)`.
+
+**Format exploitable, pour des scripts**
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN --format json | jq '.diffs[0].claims'
+```
+
+Structure du JSON :
+
+```json
+{
+  "base": "<base token>",
+  "diffs": [
+    {
+      "token": "<compared token>",
+      "header": [{ "key": "alg", "status": "changed", "base": "HS256", "other": "RS256" }],
+      "claims": [{ "key": "role", "status": "added", "other": "admin" }],
+      "signatureChanged": true,
+      "identical": false
+    }
+  ]
+}
+```
+
+`status` vaut `added`, `removed`, ou `changed`. `base`/`other` sont omis lorsqu'ils ne s'appliquent pas (ex. `base` est absent pour un champ `added`).
+
+**Comparer tous les tokens trouvés dans une réponse capturée**
+
+```sh
+curl -s https://api.example.com/profile | jwtop find | jwtop diff
+```
+
+<Aside type="note">
+  Comme pour [`decode`](./decode), les signatures sont comparées comme de simples chaînes — `diff` ne vérifie aucun des deux tokens. Utilisez [`verify`](./verify) au préalable si vous devez confirmer qu'un token a une signature valide.
+</Aside>
+
+## Codes de sortie
+
+| Code | Signification |
+|---|---|
+| `0` | Chaque token comparé est identique à la référence |
+| `1` | Au moins un token comparé diffère de la référence, ou une erreur d'argument/de format s'est produite |

@@ -1,0 +1,64 @@
+---
+title: Bien démarrer
+description: Boîte à outils JWT — décoder, vérifier, créer, signer, cracker et exploiter des JSON Web Tokens depuis la CLI ou dans GitHub Actions.
+template: splash
+hero:
+  tagline: Boîte à outils JWT pour la CLI et GitHub Actions. Décodez, vérifiez, créez, re-signez et testez la sécurité des JSON Web Tokens.
+  actions:
+    - text: Commencer
+      link: ./installation/
+      icon: right-arrow
+      variant: primary
+    - text: Référence CLI
+      link: ./reference/cli/
+      icon: open-book
+sidebar:
+  order: 1
+---
+
+import { Card, CardGrid, LinkCard } from '@/components/docs';
+
+<CardGrid stagger>
+  <Card title="Décoder" icon="magnifier">
+    Inspectez l'en-tête et les claims de n'importe quel JWT sans avoir besoin de la clé de signature.
+  </Card>
+  <Card title="Vérifier" icon="approve-check">
+    Validez les signatures avec un secret HMAC, une clé PEM ou un endpoint JWKS.
+  </Card>
+  <Card title="Créer et signer" icon="pencil">
+    Créez de nouveaux tokens ou re-signez des tokens existants avec un autre algorithme ou une autre clé.
+  </Card>
+  <Card title="Générer des clés" icon="setting">
+    Générez des clés de signature et des secrets avec des paramètres de force minimale imposés.
+  </Card>
+  <Card title="Tests de sécurité" icon="warning">
+    Testez des serveurs en production pour détecter des vulnérabilités JWT ou générez des tokens d'exploitation pour des tests manuels.
+  </Card>
+</CardGrid>
+
+## Démarrage rapide
+
+```sh
+# Installation
+go install github.com/cerberauth/jwtop@latest
+
+# Décoder un token
+jwtop decode $TOKEN
+
+# Vérifier avec un secret HMAC
+jwtop verify $TOKEN --secret mysecret
+
+# Tester un serveur pour des vulnérabilités JWT
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+## Explorer la documentation
+
+<CardGrid>
+  <LinkCard title="Installation" description="Installez via go install, Homebrew ou Docker." href="./installation/" />
+  <LinkCard title="Référence CLI" description="Toutes les commandes, options et codes de sortie." href="./reference/cli/" />
+  <LinkCard title="Vulnérabilités" description="Découvrez les vulnérabilités JWT et comment les tester." href="./vulnerabilities/" />
+  <LinkCard title="GitHub Actions" description="Utilisez jwtop en CI avec cerberauth/jwtop-action." href="./github-actions/" />
+  <LinkCard title="Docker" description="Exécutez jwtop depuis un conteneur — aucune chaîne d'outils Go locale requise." href="./docker/" />
+  <LinkCard title="Agent Skills" description="Pilotez jwtop depuis un agent de code avec des requêtes en langage naturel." href="./agent-skills/" />
+</CardGrid>

@@ -1,0 +1,111 @@
+---
+title: Injection d'en-tête JWK JWT
+description: L'injection d'en-tête JWK JWT (CVE-2018-0114) survient lorsqu'un serveur fait confiance à une clé publique embarquée directement dans le header `jwk` du token au lieu de valider contre un jeu de clés connu, permettant aux attaquants de forger des tokens signés avec leur propre clé.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>CVE</th>
+    <td>
+      <ul>
+        <li><a href="https://www.cve.org/CVERecord?id=CVE-2018-0114">CVE-2018-0114</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/194.html">CAPEC-194: Fake the Source of Data</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Le champ d'en-tête JWT `jwk` (RFC 7515 §4.1.3) permet à un token d'embarquer la clé publique nécessaire pour vérifier sa propre signature. Il existe pour les cas où le vérificateur ne possède pas encore le matériel de clé du signataire. Certaines bibliothèques JWT — notamment les premières versions de `express-jwt`/`jsonwebtoken` (CVE-2018-0114) — faisaient implicitement confiance à n'importe quelle clé embarquée là, au lieu de la vérifier contre un jeu de clés connu, épinglé, ou l'endpoint JWKS propre du serveur.
+
+Un attaquant qui contrôle cette faille de confiance génère simplement sa propre paire de clés, embarque la partie publique dans l'en-tête `jwk`, et signe le token avec la clé privée correspondante. Comme le serveur extrait et utilise la clé fournie par l'attaquant pour vérifier la signature fournie par l'attaquant, la vérification réussit toujours — pour n'importe quels claims choisis par l'attaquant.
+
+## Exemple
+
+Voici un JWT valide signé en RS256 avec la vraie clé du serveur :
+
+```
+eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.<signature>
+```
+
+L'attaquant génère une nouvelle paire de clés RSA, embarque la clé publique dans l'en-tête `jwk`, définit `kid` en correspondance, et re-signe avec la partie privée :
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "jwk-injection",
+  "jwk": {
+    "kty": "RSA",
+    "use": "sig",
+    "kid": "jwk-injection",
+    "alg": "RS256",
+    "n": "xXMZbZPrGVs550WbJ0FJRMLijFY7wDDME1dV88KGQPzJ...",
+    "e": "AQAB"
+  }
+}
+```
+
+Un serveur vulnérable lit la clé publique directement depuis `jwk`, vérifie la signature avec (ce qui réussit — l'attaquant a signé avec la clé privée correspondante), et traite le token comme authentique.
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT JWK Header Injection », vous pouvez utiliser la commande `crack` :
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+La vérification ne s'exécute que contre les tokens RSA/ECDSA (`RS*`/`ES*`/`PS*`) — un serveur qui fait confiance à un `jwk` embarqué n'a aucune raison de le faire pour des tokens signés en HMAC.
+
+Pour générer un token avec un `jwk` auto-signé injecté, utilisez la commande `exploit jwkinjection` :
+
+<Tabs>
+  <TabItem label="Générer une nouvelle paire de clés">
+```bash
+jwtop exploit jwkinjection [token]
+```
+  </TabItem>
+  <TabItem label="Choisir l'algorithme">
+```bash
+jwtop exploit jwkinjection [token] --alg ES256
+```
+  </TabItem>
+  <TabItem label="Re-signer avec une clé existante">
+```bash
+jwtop exploit jwkinjection [token] --key /path/to/private.pem
+```
+  </TabItem>
+</Tabs>
+
+## Quel est l'impact ?
+
+Une attaque par injection JWK réussie permet à un attaquant de forger un JWT que le serveur accepte comme légitime, sans aucune connaissance de la clé de signature réelle du serveur. Cela peut mener à un contournement total de l'authentification, une élévation de privilèges, ou une usurpation d'identité de n'importe quel utilisateur du système.
+
+## Comment corriger ?
+
+- **Ne résolvez jamais la clé de vérification à partir du token lui-même.** Ignorez les champs d'en-tête `jwk` (et `jku`, `x5u`) lors de la vérification — recherchez la clé côté serveur par `kid` dans un jeu de clés épinglé ou votre propre endpoint JWKS.
+- **Si le support de `jwk`/`jku` est incontournable**, restreignez-le à une liste explicite de clés ou d'émetteurs de confiance, et n'acceptez jamais une clé que le token fournit lui-même comme preuve de sa propre authenticité.
+- **Épinglez l'algorithme et la ou les clés attendues par émetteur** afin qu'un token ne puisse pas dicter quelle clé ou famille d'algorithme le vérifie.
