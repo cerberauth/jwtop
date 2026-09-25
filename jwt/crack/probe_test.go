@@ -16,6 +16,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cerberauth/harnessx"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -875,6 +876,60 @@ func TestProbeAll_TokenLocation_Invalid_ReturnsError(t *testing.T) {
 		TokenLocation: crack.TokenLocation{In: "banana"},
 	})
 	assert.Error(t, err)
+}
+
+func TestProbeAll_WithSharedEngine_MatchesResultsWithoutEngine(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	srv := tokenAwareServer(token, 200, 401)
+	defer srv.Close()
+
+	withoutEngine, baselineWithout, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL})
+	require.NoError(t, err)
+
+	engine := harnessx.New()
+	withEngine, baselineWith, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL, Engine: engine})
+	require.NoError(t, err)
+
+	assert.Equal(t, baselineWithout, baselineWith)
+	assert.ElementsMatch(t, withoutEngine, withEngine)
+}
+
+func TestProbeAll_WithSharedEngine_ConcurrentCallsAreIsolated(t *testing.T) {
+	engine := harnessx.New()
+
+	const n = 20
+	var wg sync.WaitGroup
+	errs := make([]error, n)
+	baselines := make([]int, n)
+	tokens := make([]string, n)
+
+	for i := 0; i < n; i++ {
+		tokens[i] = makeHS256Token(t, "secret")
+	}
+
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			token := tokens[i]
+			srv := tokenAwareServer(token, 200, 401)
+			defer srv.Close()
+
+			results, baseline, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{URL: srv.URL, Engine: engine})
+			errs[i] = err
+			baselines[i] = baseline
+			if err == nil {
+				_, ok := findResult(results, "No Verification")
+				assert.True(t, ok)
+			}
+		}(i)
+	}
+	wg.Wait()
+
+	for i := 0; i < n; i++ {
+		require.NoError(t, errs[i])
+		assert.Equal(t, 401, baselines[i])
+	}
 }
 
 func TestCheckDefs_IncludesBaselineIndependentChecks(t *testing.T) {

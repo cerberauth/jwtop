@@ -49,6 +49,7 @@ type ProbeOptions struct {
 	Delay              time.Duration
 	Probe              *probe.Probe
 	Reporters          []harnessx.Reporter
+	Engine             *harnessx.Engine
 	KidSQLTable        string
 	KidPath            string
 	TokenLocation      TokenLocation
@@ -144,15 +145,21 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 
 	checks, defs := BuildChecks()
 
-	var engineOpts []harnessx.Option
-	if len(opts.Reporters) > 0 {
-		engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
+	var summary harnessx.ScanSummary
+	var err error
+	if opts.Engine != nil {
+		summary, err = opts.Engine.RunScenario(ctx, harnessx.Target{URL: opts.URL, Data: pctx}, harnessx.Scenario{Checks: checks})
+	} else {
+		var engineOpts []harnessx.Option
+		if len(opts.Reporters) > 0 {
+			engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
+		}
+		engine := harnessx.New(engineOpts...)
+		if regErr := engine.Register(checks...); regErr != nil {
+			return nil, 0, regErr
+		}
+		summary, err = engine.Run(ctx, harnessx.Target{URL: opts.URL, Data: pctx})
 	}
-	engine := harnessx.New(engineOpts...)
-	if err := engine.Register(checks...); err != nil {
-		return nil, 0, err
-	}
-	summary, err := engine.Run(ctx, harnessx.Target{URL: opts.URL, Data: pctx})
 	if err != nil {
 		return nil, 0, err
 	}
