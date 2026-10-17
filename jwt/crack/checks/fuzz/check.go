@@ -55,7 +55,7 @@ var Check = checkdef.NewCheck(Def,
 		// mutation's response is compared against this rather than the
 		// global invalid-token baseline, since fuzzing is looking for
 		// deviations from normal behavior, not from a rejected token.
-		_, refBody, err := send(ctx, pctx, target, pctx.TokenString)
+		refStatus, refBody, err := send(ctx, pctx, target, pctx.TokenString)
 		if err != nil {
 			return harnessx.Result{}, err
 		}
@@ -92,7 +92,7 @@ var Check = checkdef.NewCheck(Def,
 			}
 			attempted++
 
-			div := jwtfuzz.Detect(status, body, len(refBody))
+			div := jwtfuzz.DetectReflecting(status, body, refStatus, len(refBody), cm.Mutation.Value)
 			if div.Any() && len(findings) < maxFindings {
 				findings = append(findings, fmt.Sprintf("%s=%s/%s (status %d: %s)", cm.Claim, cm.Mutation.Category, cm.Mutation.Name, status, div.String()))
 			}
