@@ -1,0 +1,104 @@
+---
+title: JWT Timestamp Tampering
+description: A vulnerability where a server accepts a re-signed JWT whose exp, iat, or nbf claims have been tampered with, because claims validation is disabled or incomplete once the signature checks out.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/613.html">CWE-613: Insufficient Session Expiration</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Attack Pattern</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/60.html">CAPEC-60: Reusing Session IDs (aka Session Replay)</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+JWTs carry their own lifetime and activation rules in the `exp` (expiration), `iat` (issued at), and `nbf` (not before) claims. A signature check alone only proves who signed a token at some point — it says nothing about whether that token is still supposed to be usable *now*. Several JWT libraries make it easy to disable claims validation while leaving signature verification intact (e.g. `jwt.WithoutClaimsValidation()` in `golang-jwt/jwt`, `options={"verify_exp": False}` in PyJWT, `ignoreExpiration: true` in the Node `jsonwebtoken` package) — often added temporarily for debugging and never removed. A server with claims validation disabled accepts a token that is already expired by its own `exp` claim exactly as if it were freshly issued.
+
+Anyone who holds the signing key — the legitimate tester, or an attacker who obtained it through a separate vulnerability such as a weak or leaked secret — can go further: re-sign the token with `exp` pushed far into the future, `iat` moved into the past, or `nbf` removed outright, and it will pass such a server's checks indefinitely. Even without the key, simply replaying a token *after* it has naturally expired reveals the same bug.
+
+## Example
+
+Here is a valid, freshly issued JWT signed with HS256, expiring in one hour:
+
+```json
+{
+  "sub": "user123",
+  "iat": 1516239022,
+  "exp": 1516242622
+}
+```
+
+Re-signed with the same secret, with `exp` moved into the past (already expired):
+
+```json
+{
+  "sub": "user123",
+  "iat": 1516239022,
+  "exp": 1516235422
+}
+```
+
+Both tokens have a valid signature for the secret in use — a server that enforces `exp` rejects the second one; one with claims validation disabled accepts both identically.
+
+## How to test?
+
+The fastest way is `crack`, which recovers the HMAC secret (if weak or guessable) and uses it to probe this automatically:
+
+```bash
+jwtop crack [token] --url [url] --secret [candidate-secret]
+```
+
+To do it manually — or to go further and test for a lifetime/activation policy the server is supposed to enforce *independent* of the claims (a maximum session age tied to issuance, a revocation check, ...) — use the `exploit` subcommands to produce a re-signed token and replay it against your server:
+
+```bash
+# Push exp into the past (already expired) - the baseline check above
+jwtop exploit extendexp [token] --secret [secret] --extension=-1h
+
+# Push exp ten years into the future (default)
+jwtop exploit extendexp [token] --secret [secret]
+
+# Move iat into the past, e.g. to predate a password reset
+jwtop exploit backdateiat [token] --secret [secret] --offset 720h
+
+# Remove nbf entirely
+jwtop exploit clearnbf [token] --secret [secret]
+```
+
+Each command accepts `--key` instead of `--secret` for RSA/ECDSA/EdDSA-signed tokens. Send the resulting token to the target endpoint; if an already-expired token is accepted, claims validation is off entirely. If only the far-future-`exp`/backdated-`iat`/no-`nbf` variants succeed, claims validation itself is fine but nothing beyond it is enforced.
+
+## What is the impact?
+
+- **Indefinite replay of a token that should have expired**: with claims validation disabled, there's no cutoff at all — a token captured once (via logs, a proxy, a browser history, ...) stays usable forever, with or without the signing key.
+- **Indefinite token reuse by a key holder**: anyone who holds (or recovers) the signing key can keep a token valid forever by repeatedly extending `exp`, turning a single leaked key into a permanent backdoor.
+- **Bypassing activation delays**: removing `nbf` lets a token minted for future use (e.g. a scheduled access grant) be used immediately.
+- **Undermining claim-based trust decisions**: backdating `iat` can defeat logic that trusts a token's issuance time relative to another event, such as "reject tokens issued before the last password change."
+
+## How to remediate?
+
+1. **Never disable claims validation in production.** Options like `WithoutClaimsValidation()`/`verify_exp: False`/`ignoreExpiration: true` exist for tests and local development — audit for them before shipping, and prefer a library/configuration that validates `exp` (and `nbf`, when present) by default.
+
+2. **Enforce a server-side maximum session/token lifetime** independent of the `exp` claim — don't let a token's own claims be the only bound on how long it can be used.
+
+3. **Track and check issuance server-side** for sensitive trust decisions (e.g. "was this token issued after the last credential change") rather than trusting the `iat` claim alone — a signature proves the claims weren't altered *after* the key holder signed them, not that the key holder is trustworthy.
+
+4. **Keep signing keys and secrets confidential and rotate them regularly.** Re-signing with a tampered `exp`/`iat`/`nbf` requires the key; most of its real-world impact comes paired with a separate key-exposure issue (weak secret, leaked key, SSRF-fetched JWKS, ...).
+
+5. **Prefer short-lived access tokens with a separate, revocable refresh/session mechanism** over long-lived JWTs, so a compromised signing key doesn't translate into indefinite access.

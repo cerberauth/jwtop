@@ -124,6 +124,7 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --t
 | `kidinjection (path)` | Path traversal via le header `kid` |
 | `jwkinjection` | JWK auto-signé embarqué dans le header et accepté par le serveur — CVE-2018-0114 (ignoré pour les algorithmes non asymétriques) |
 | `weaksecret` | Force brute sur dictionnaire du secret de signature HMAC |
+| `timestamptampering` | Re-signature avec `exp` repoussé dans le passé en utilisant le secret HMAC retrouvé — teste si la validation des claims (`exp`/`nbf`/`iat`) est imposée (ignoré sauf si `weaksecret` a retrouvé le secret) |
 | `fuzz` | Fuzzing par mutation de claims — activable via `--fuzz`, ignoré sinon |
 
 ### Fuzzing par mutation de claims (`--fuzz`)

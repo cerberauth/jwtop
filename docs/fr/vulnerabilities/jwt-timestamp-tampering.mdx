@@ -1,0 +1,104 @@
+---
+title: Altération des timestamps JWT
+description: Une vulnérabilité où un serveur accepte un JWT re-signé dont les claims exp, iat ou nbf ont été altérés, parce que la validation des claims est désactivée ou incomplète une fois la signature vérifiée.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/613.html">CWE-613: Insufficient Session Expiration</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/60.html">CAPEC-60: Reusing Session IDs (aka Session Replay)</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Les JWT transportent leurs propres règles de durée de vie et d'activation dans les claims `exp` (expiration), `iat` (émis le) et `nbf` (pas avant). Une vérification de signature prouve uniquement qui a signé un token à un instant donné — elle ne dit rien sur le fait que ce token soit encore censé être utilisable *maintenant*. Plusieurs bibliothèques JWT permettent facilement de désactiver la validation des claims tout en laissant la vérification de signature intacte (par ex. `jwt.WithoutClaimsValidation()` dans `golang-jwt/jwt`, `options={"verify_exp": False}` dans PyJWT, `ignoreExpiration: true` dans le paquet Node `jsonwebtoken`) — souvent ajoutée temporairement pour le débogage et jamais retirée. Un serveur dont la validation des claims est désactivée accepte un token déjà expiré selon son propre claim `exp` exactement comme s'il venait d'être émis.
+
+Quiconque détient la clé de signature — le testeur légitime, ou un attaquant qui l'a obtenue via une autre vulnérabilité comme un secret faible ou une clé fuitée — peut aller plus loin : re-signer le token avec `exp` repoussé loin dans le futur, `iat` déplacé dans le passé, ou `nbf` supprimé, et il passera indéfiniment les vérifications d'un tel serveur. Même sans la clé, le simple fait de rejouer un token *après* son expiration naturelle révèle le même bug.
+
+## Exemple
+
+Voici un JWT valide, récemment émis, signé en HS256, expirant dans une heure :
+
+```json
+{
+  "sub": "user123",
+  "iat": 1516239022,
+  "exp": 1516242622
+}
+```
+
+Re-signé avec le même secret, avec `exp` déplacé dans le passé (déjà expiré) :
+
+```json
+{
+  "sub": "user123",
+  "iat": 1516239022,
+  "exp": 1516235422
+}
+```
+
+Les deux tokens ont une signature valide pour le secret utilisé — un serveur qui impose `exp` rejette le second ; un serveur dont la validation des claims est désactivée accepte les deux de la même façon.
+
+## Comment tester ?
+
+Le moyen le plus rapide est `crack`, qui récupère le secret HMAC (s'il est faible ou devinable) et l'utilise pour tester cela automatiquement :
+
+```bash
+jwtop crack [token] --url [url] --secret [secret-candidat]
+```
+
+Pour le faire manuellement — ou pour aller plus loin et tester une politique de durée de vie/d'activation que le serveur est censé imposer *indépendamment* des claims (un âge de session maximal lié à la date d'émission, une vérification de révocation, ...) — utilisez les sous-commandes `exploit` pour produire un token re-signé et rejouez-le contre votre serveur :
+
+```bash
+# Repousser exp dans le passé (déjà expiré) - le test de base ci-dessus
+jwtop exploit extendexp [token] --secret [secret] --extension=-1h
+
+# Repousser exp de dix ans dans le futur (valeur par défaut)
+jwtop exploit extendexp [token] --secret [secret]
+
+# Déplacer iat dans le passé, par ex. pour antidater une réinitialisation de mot de passe
+jwtop exploit backdateiat [token] --secret [secret] --offset 720h
+
+# Supprimer nbf entièrement
+jwtop exploit clearnbf [token] --secret [secret]
+```
+
+Chaque commande accepte `--key` à la place de `--secret` pour les tokens signés en RSA/ECDSA/EdDSA. Envoyez le token résultant au endpoint cible ; si un token déjà expiré est accepté, la validation des claims est entièrement désactivée. Si seules les variantes `exp` repoussé dans le futur / `iat` antidaté / `nbf` absent fonctionnent, la validation des claims elle-même est correcte mais rien d'autre n'est imposé.
+
+## Quel est l'impact ?
+
+- **Réutilisation indéfinie d'un token qui aurait dû expirer** : avec la validation des claims désactivée, il n'y a aucune limite du tout — un token capturé une seule fois (via des logs, un proxy, un historique de navigateur, ...) reste utilisable pour toujours, avec ou sans la clé de signature.
+- **Réutilisation indéfinie du token par le détenteur de la clé** : quiconque détient (ou récupère) la clé de signature peut garder un token valide pour toujours en prolongeant `exp` à répétition, transformant une simple clé fuitée en porte dérobée permanente.
+- **Contournement des délais d'activation** : supprimer `nbf` permet d'utiliser immédiatement un token prévu pour un usage futur (par ex. un accès programmé).
+- **Compromission des décisions de confiance basées sur les claims** : antidater `iat` peut déjouer une logique qui fait confiance à la date d'émission d'un token relativement à un autre événement, comme « rejeter les tokens émis avant le dernier changement de mot de passe ».
+
+## Comment corriger ?
+
+1. **Ne jamais désactiver la validation des claims en production.** Des options comme `WithoutClaimsValidation()`/`verify_exp: False`/`ignoreExpiration: true` existent pour les tests et le développement local — vérifiez leur absence avant de déployer, et privilégiez une bibliothèque/configuration qui valide `exp` (et `nbf`, quand présent) par défaut.
+
+2. **Imposer une durée de vie maximale côté serveur**, indépendante du claim `exp` — ne laissez pas les claims du token être la seule borne sur sa durée d'utilisation.
+
+3. **Suivre et vérifier l'émission côté serveur** pour les décisions de confiance sensibles (par ex. « ce token a-t-il été émis après le dernier changement de mot de passe ») plutôt que de faire confiance au seul claim `iat` — une signature prouve que les claims n'ont pas été modifiés *après* que le détenteur de la clé les a signés, pas que ce détenteur est digne de confiance.
+
+4. **Garder les clés et secrets de signature confidentiels et les faire tourner régulièrement.** Re-signer avec un `exp`/`iat`/`nbf` altéré nécessite la clé ; la majeure partie de son impact réel va de pair avec une autre vulnérabilité d'exposition de clé (secret faible, clé fuitée, JWKS récupéré via SSRF, ...).
+
+5. **Privilégier des access tokens à courte durée de vie avec un mécanisme de session/refresh séparé et révocable** plutôt que des JWT à longue durée de vie, afin qu'une clé de signature compromise ne se traduise pas par un accès indéfini.
