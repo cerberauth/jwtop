@@ -71,6 +71,15 @@ jobs:
       - name: Exploit nullsig
         run: ./jwtop exploit nullsig ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
+      - name: Exploit extendexp
+        run: ./jwtop exploit extendexp ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
+
+      - name: Exploit backdateiat
+        run: ./jwtop exploit backdateiat ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
+
+      - name: Exploit clearnbf
+        run: ./jwtop exploit clearnbf ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
+
       - name: Exploit weak / known secret
         run: ./jwtop exploit weaksecret --secret testsecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
@@ -219,6 +228,12 @@ jobs:
             vulnerable: true
           - challenge: "jwt-psychic-signature"
             vulnerable: false
+          - challenge: "jwt-timestamp-tampering"
+            vulnerable: true
+            crack_args: "--secret s3cr3t-dev-key"
+          - challenge: "jwt-timestamp-tampering"
+            vulnerable: false
+            crack_args: "--secret s3cr3t-dev-key"
           - challenge: "jwt-weak-hmac-secret"
             vulnerable: true
           - challenge: "jwt-weak-hmac-secret"

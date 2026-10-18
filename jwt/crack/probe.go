@@ -21,6 +21,7 @@ import (
 	noverification "github.com/cerberauth/jwtop/jwt/crack/checks/no_verification"
 	nullsignature "github.com/cerberauth/jwtop/jwt/crack/checks/null_signature"
 	psychicsignature "github.com/cerberauth/jwtop/jwt/crack/checks/psychic_signature"
+	timestamptampering "github.com/cerberauth/jwtop/jwt/crack/checks/timestamp_tampering"
 	weaksecret "github.com/cerberauth/jwtop/jwt/crack/checks/weak_secret"
 	x5cinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5c_injection"
 	x5uinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5u_injection"
@@ -83,6 +84,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		x5cinjection.Check,
 		x5uinjection.Check,
 		weaksecret.Check,
+		timestamptampering.Check,
 		claimfuzz.Check,
 	}
 
@@ -100,6 +102,7 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[x5cinjection.Check.ID] = x5cinjection.Def
 	defs[x5uinjection.Check.ID] = x5uinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
+	defs[timestamptampering.Check.ID] = timestamptampering.Def
 	defs[claimfuzz.Check.ID] = claimfuzz.Def
 	for _, c := range checks {
 		def := defs[c.ID]
