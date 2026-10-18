@@ -4,18 +4,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os"
 
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var diffFormat string
-
-var diffOtelName = "github.com/cerberauth/jwtop/cmd/diff"
 
 var diffCmd = &cobra.Command{
 	Use:   "diff <token> <token>...",
@@ -34,36 +29,27 @@ Use --format json for a machine-readable report suitable for scripts and
 CI, or the default --format text for a human-readable summary.`,
 	Args: cobra.ArbitraryArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(diffOtelName)
-		diffSuccessCounter, _ := telemetryMeter.Int64Counter("diff.success.counter")
-		diffErrorCounter, _ := telemetryMeter.Int64Counter("diff.error.counter")
-
-		ctx := cmd.Context()
 
 		tokens, err := readTokensArg(args)
 		if err != nil {
-			diffErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no tokens")))
-			return err
+			return telemetryx.Reason(err, "no-tokens")
 		}
 
 		result, err := jwt.Diff(tokens[0], tokens[1:]...)
 		if err != nil {
-			diffErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to diff tokens")))
-			return fmt.Errorf("failed to diff tokens: %w", err)
+			return telemetryx.Reason(fmt.Errorf("failed to diff tokens: %w", err), "failed-to-diff-tokens")
 		}
 
 		out := cmd.OutOrStdout()
 		switch diffFormat {
 		case "json":
 			if err := printDiffJSON(out, result); err != nil {
-				diffErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to marshal diff")))
-				return err
+				return telemetryx.Reason(err, "failed-to-marshal-diff")
 			}
 		case "text", "":
 			printDiffText(out, result)
 		default:
-			diffErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "invalid format")))
-			return fmt.Errorf("invalid --format %q: must be \"text\" or \"json\"", diffFormat)
+			return telemetryx.Reason(fmt.Errorf("invalid --format %q: must be \"text\" or \"json\"", diffFormat), "invalid-format")
 		}
 
 		anyDifferent := false
@@ -74,10 +60,8 @@ CI, or the default --format text for a human-readable summary.`,
 			}
 		}
 
-		diffSuccessCounter.Add(ctx, 1, metric.WithAttributes(attribute.Bool("has_differences", anyDifferent)))
-
 		if anyDifferent {
-			os.Exit(1)
+			telemetryx.Exit(cmd, 1)
 		}
 
 		return nil

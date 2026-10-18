@@ -9,13 +9,9 @@ import (
 	"github.com/cerberauth/x/fsx"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var findFile string
-
-var findOtelName = "github.com/cerberauth/jwtop/cmd/find"
 
 var findCmd = &cobra.Command{
 	Use:   "find [text]",
@@ -52,12 +48,6 @@ Combine with other commands:
   done`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(findOtelName)
-		findSuccessCounter, _ := telemetryMeter.Int64Counter("find.success.counter")
-		findErrorCounter, _ := telemetryMeter.Int64Counter("find.error.counter")
-		findNotFoundCounter, _ := telemetryMeter.Int64Counter("find.notfound.counter")
-
-		ctx := cmd.Context()
 
 		var text string
 
@@ -66,8 +56,7 @@ Combine with other commands:
 			// --file flag takes highest priority
 			data, err := fsx.ReadFile(findFile)
 			if err != nil {
-				findErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to read file")))
-				return fmt.Errorf("reading file: %w", err)
+				return telemetryx.Reason(fmt.Errorf("reading file: %w", err), "failed-to-read-file")
 			}
 			text = string(data)
 
@@ -79,25 +68,20 @@ Combine with other commands:
 			// Fall back to stdin
 			tokens, err := jwt.FindAllReader(os.Stdin)
 			if err != nil {
-				findErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to read stdin")))
-				return fmt.Errorf("reading stdin: %w", err)
+				return telemetryx.Reason(fmt.Errorf("reading stdin: %w", err), "failed-to-read-stdin")
 			}
 			if len(tokens) == 0 {
-				findNotFoundCounter.Add(ctx, 1)
 				return nil
 			}
-			findSuccessCounter.Add(ctx, 1, metric.WithAttributes(attribute.Int("count", len(tokens))))
 			fmt.Println(strings.Join(tokens, "\n"))
 			return nil
 		}
 
 		tokens := jwt.FindAll(text)
 		if len(tokens) == 0 {
-			findNotFoundCounter.Add(ctx, 1)
 			return nil
 		}
 
-		findSuccessCounter.Add(ctx, 1, metric.WithAttributes(attribute.Int("count", len(tokens))))
 		fmt.Println(strings.Join(tokens, "\n"))
 		return nil
 	},
