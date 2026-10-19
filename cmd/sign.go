@@ -7,8 +7,6 @@ import (
 	"github.com/cerberauth/x/telemetryx"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -16,8 +14,6 @@ var (
 	signSecret string
 	signKey    string
 )
-
-var signOtelName = "github.com/cerberauth/jwtop/cmd/sign"
 
 var signCmd = &cobra.Command{
 	Use:   "sign [token]",
@@ -31,74 +27,55 @@ The token can be supplied as a positional argument or piped via stdin:
   jwtop find --file page.html | jwtop sign --alg HS256 --secret mysecret`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(signOtelName)
-		signSuccessCounter, _ := telemetryMeter.Int64Counter("sign.success.counter")
-		signErrorCounter, _ := telemetryMeter.Int64Counter("sign.error.counter")
-
-		ctx := cmd.Context()
 
 		inputToken, err := readTokenArg(args)
 		if err != nil {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
-			return err
+			return telemetryx.Reason(err, "no-token")
 		}
 
 		if signAlg == "" {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "missing algorithm")))
-			return fmt.Errorf("--alg is required")
+			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
-
-		algAttr := attribute.String("alg", signAlg)
 
 		writer, err := editor.NewTokenEditor(inputToken)
 		if err != nil {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to parse token")))
-			return fmt.Errorf("parsing token: %w", err)
+			return telemetryx.Reason(fmt.Errorf("parsing token: %w", err), "failed-to-parse-token")
 		}
 
 		if signAlg == "none" {
 			tokenString, err := writer.WithAlgNone()
 			if err != nil {
-				signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to sign with none")))
-				return fmt.Errorf("signing with none: %w", err)
+				return telemetryx.Reason(fmt.Errorf("signing with none: %w", err), "failed-to-sign-with-none")
 			}
-			signSuccessCounter.Add(ctx, 1, metric.WithAttributes(algAttr))
 			fmt.Println(tokenString)
 			return nil
 		}
 
 		method, err := ParseSigningMethod(signAlg)
 		if err != nil {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "invalid signing method")))
-			return err
+			return telemetryx.Reason(err, "invalid-signing-method")
 		}
 
 		var tokenString string
 
 		if signSecret != "" {
 			if _, ok := method.(*jwtlib.SigningMethodHMAC); !ok {
-				signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "secret used with non-HMAC algorithm")))
-				return fmt.Errorf("--secret can only be used with HMAC algorithms")
+				return telemetryx.Reason(fmt.Errorf("--secret can only be used with HMAC algorithms"), "secret-used-with-non-hmac-algorithm")
 			}
 			tokenString, err = writer.SignWithMethodAndKey(method, []byte(signSecret))
 		} else if signKey != "" {
 			key, _, keyErr := resolveKey("", signKey, false)
 			if keyErr != nil {
-				signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to resolve key")))
-				return keyErr
+				return telemetryx.Reason(keyErr, "failed-to-resolve-key")
 			}
 			tokenString, err = writer.SignWithMethodAndKey(method, key)
 		} else {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "no key provided")))
-			return fmt.Errorf("no key provided: use --secret or --key")
+			return telemetryx.Reason(fmt.Errorf("no key provided: use --secret or --key"), "no-key-provided")
 		}
 
 		if err != nil {
-			signErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to sign token")))
-			return fmt.Errorf("signing token: %w", err)
+			return telemetryx.Reason(fmt.Errorf("signing token: %w", err), "failed-to-sign-token")
 		}
-
-		signSuccessCounter.Add(ctx, 1, metric.WithAttributes(algAttr))
 
 		fmt.Println(tokenString)
 		return nil

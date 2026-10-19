@@ -53,7 +53,7 @@ echo <token> | jwtop crack --url <url>
 
 - **Auto-detection**: on every invocation, jwtop checks whether `john`/`hashcat` are on `PATH`. If a tool is found but not enabled (neither its bool flag nor its `-path` flag was passed), a one-line advisory is printed to stderr, e.g. `[i] hashcat detected on PATH — pass --hashcat (or --hashcat-path) to use it as a fallback for faster HMAC secret cracking`.
 - **Timeouts**: if a tool doesn't finish within `--crack-timeout` (default `5m`), it's stopped and jwtop prints an explicit warning — `[!] john timed out after 5m0s without finding the secret — try a larger --crack-timeout or a smaller wordlist` — rather than silently reporting "not found".
-- **Telemetry**: usage of each tool (success/not-found/error) and detection events are reported the same way as every other check, plus a span per invocation recording exit code, tool version, format/mode, candidate count, and (for hashcat) a summary of the compute backend — never the token or the cracked secret.
+- **Telemetry**: whether `john` and `hashcat` were found on `PATH`, and the outcome of each external tool run (success, not found, error or timeout), are reported as anonymous usage counts like the rest of jwtop's telemetry (see `--sqa-opt-out`) — never the token, the wordlist or the cracked secret.
 - **Docker**: the published image is `distroless` (no shell, no package manager) — `--john`/`--hashcat` cannot work inside it. Run jwtop on the host, or build a custom image with these tools installed.
 - **Installing the tools** (Debian/Ubuntu):
 

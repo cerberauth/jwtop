@@ -8,8 +8,6 @@ import (
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -21,8 +19,6 @@ var (
 	genkeyForce        bool
 	genkeyPublicOnly   bool
 )
-
-var genkeyOtelName = "github.com/cerberauth/jwtop/cmd/genkey"
 
 var genkeyCmd = &cobra.Command{
 	Use:     "genkey",
@@ -50,18 +46,10 @@ PS512, ES256, ES384, ES512, EdDSA.
   jwtop genkey --alg ES256 --out ./es256 && jwtop create --alg ES256 --key ./es256`,
 	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(genkeyOtelName)
-		successCounter, _ := telemetryMeter.Int64Counter("genkey.success.counter")
-		errorCounter, _ := telemetryMeter.Int64Counter("genkey.error.counter")
-
-		ctx := cmd.Context()
 
 		if genkeyAlg == "" {
-			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "missing algorithm")))
-			return fmt.Errorf("--alg is required")
+			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
-
-		algAttr := attribute.String("alg", genkeyAlg)
 
 		result, err := jwt.GenerateKeyPair(jwt.GenerateKeyOptions{
 			Algorithm:   genkeyAlg,
@@ -69,16 +57,13 @@ PS512, ES256, ES384, ES512, EdDSA.
 			SecretBytes: genkeySecretBytes,
 		})
 		if err != nil {
-			errorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to generate key")))
-			return fmt.Errorf("generating key: %w", err)
+			return telemetryx.Reason(fmt.Errorf("generating key: %w", err), "failed-to-generate-key")
 		}
 
 		if err := emitGeneratedKey(cmd, result); err != nil {
-			errorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to write key")))
-			return err
+			return telemetryx.Reason(err, "failed-to-write-key")
 		}
 
-		successCounter.Add(ctx, 1, metric.WithAttributes(algAttr))
 		return nil
 	},
 }
