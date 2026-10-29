@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -9,8 +8,6 @@ import (
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -18,8 +15,6 @@ var (
 	verifyKeyFile string
 	verifyJWKSURI string
 )
-
-var verifyOtelName = "github.com/cerberauth/jwtop/cmd/verify"
 
 var verifyCmd = &cobra.Command{
 	Use:   "verify [token]",
@@ -33,16 +28,10 @@ The token can be supplied as a positional argument or piped via stdin:
   jwtop find --file page.html | jwtop verify --jwks https://example.com/.well-known/jwks.json`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(verifyOtelName)
-		verifySuccessCounter, _ := telemetryMeter.Int64Counter("verify.success.counter")
-		verifyErrorCounter, _ := telemetryMeter.Int64Counter("verify.error.counter")
-
-		ctx := cmd.Context()
 
 		tokenString, err := readTokenArg(args)
 		if err != nil {
-			verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
-			return err
+			return telemetryx.Reason(err, "no-token")
 		}
 
 		opts := jwt.VerifyOptions{
@@ -56,19 +45,15 @@ The token can be supplied as a positional argument or piped via stdin:
 		if verifyKeyFile != "" {
 			pemData, err := readKeyData(verifyKeyFile)
 			if err != nil {
-				verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to read key file")))
-				return fmt.Errorf("reading key file: %w", err)
+				return telemetryx.Reason(fmt.Errorf("reading key file: %w", err), "failed-to-read-key-file")
 			}
 			opts.KeyPEM = pemData
 		}
 
 		result, err := jwt.Verify(tokenString, opts)
 		if err != nil {
-			verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "verification error")))
-			return fmt.Errorf("verification error: %w", err)
+			return telemetryx.Reason(fmt.Errorf("verification error: %w", err), "verification-error")
 		}
-
-		verifySuccessCounter.Add(ctx, 1, metric.WithAttributes(attribute.Bool("valid", result.Valid)))
 
 		if result.Valid {
 			fmt.Println("valid")
@@ -89,11 +74,7 @@ The token can be supplied as a positional argument or piped via stdin:
 		}
 
 		if !result.Valid {
-			if otelShutdown != nil {
-				_ = otelShutdown(context.Background())
-				otelShutdown = nil
-			}
-			os.Exit(1)
+			telemetryx.Exit(cmd, 1)
 		}
 
 		return nil

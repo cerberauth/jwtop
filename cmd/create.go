@@ -8,8 +8,6 @@ import (
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -24,32 +22,21 @@ var (
 	createIat    bool
 )
 
-var createOtelName = "github.com/cerberauth/jwtop/cmd/create"
-
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create and sign a new JWT",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(createOtelName)
-		createSuccessCounter, _ := telemetryMeter.Int64Counter("create.success.counter")
-		createErrorCounter, _ := telemetryMeter.Int64Counter("create.error.counter")
-
-		ctx := cmd.Context()
 
 		if createAlg == "" {
-			createErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "missing algorithm")))
-			return fmt.Errorf("--alg is required")
+			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
-
-		algAttr := attribute.String("alg", createAlg)
 
 		claims := make(map[string]string)
 
 		for _, c := range createClaims {
 			parts := strings.SplitN(c, "=", 2)
 			if len(parts) != 2 {
-				createErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "invalid claim format")))
-				return fmt.Errorf("invalid claim format %q: expected key=value", c)
+				return telemetryx.Reason(fmt.Errorf("invalid claim format %q: expected key=value", c), "invalid-claim-format")
 			}
 			claims[parts[0]] = parts[1]
 		}
@@ -73,8 +60,7 @@ var createCmd = &cobra.Command{
 		if createExp != "" {
 			d, err := time.ParseDuration(createExp)
 			if err != nil {
-				createErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "invalid expiration duration")))
-				return fmt.Errorf("invalid --exp duration: %w", err)
+				return telemetryx.Reason(fmt.Errorf("invalid --exp duration: %w", err), "invalid-expiration-duration")
 			}
 			opts.Expiration = d
 		}
@@ -87,21 +73,16 @@ var createCmd = &cobra.Command{
 		} else if createKey != "" {
 			key, _, keyErr := resolveKey("", createKey, false)
 			if keyErr != nil {
-				createErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to resolve key")))
-				return keyErr
+				return telemetryx.Reason(keyErr, "failed-to-resolve-key")
 			}
 			tokenString, err = jwt.Create(opts, key)
 		} else {
-			createErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "no key provided")))
-			return fmt.Errorf("no key provided: use --secret or --key")
+			return telemetryx.Reason(fmt.Errorf("no key provided: use --secret or --key"), "no-key-provided")
 		}
 
 		if err != nil {
-			createErrorCounter.Add(ctx, 1, metric.WithAttributes(algAttr, attribute.String("error_reason", "failed to create token")))
-			return fmt.Errorf("creating token: %w", err)
+			return telemetryx.Reason(fmt.Errorf("creating token: %w", err), "failed-to-create-token")
 		}
-
-		createSuccessCounter.Add(ctx, 1, metric.WithAttributes(algAttr))
 
 		fmt.Println(tokenString)
 		return nil
