@@ -35,20 +35,23 @@ func DefaultTokenLocation() TokenLocation {
 }
 
 type ProbeCtx struct {
-	TokenString        string
-	IsHMAC             bool
-	IsAsymmetric       bool
-	Alg                string
-	InvalidToken       string
-	AlgNoneTokens      []string
-	AlgNoneErr         error
-	Probe              *probe.Probe
-	PublicKeyPEM       []byte
-	Candidates         []string
-	Workers            int
-	ExpectedStatus     int
-	Offline            bool
+	TokenString    string
+	IsHMAC         bool
+	IsAsymmetric   bool
+	Alg            string
+	InvalidToken   string
+	AlgNoneTokens  []string
+	AlgNoneErr     error
+	Probe          *probe.Probe
+	PublicKeyPEM   []byte
+	Candidates     []string
+	Workers        int
+	ExpectedStatus int
+	Offline        bool
+	// KidSQLTable is deprecated: use KidSQLTables. When KidSQLTables is
+	// empty and this is set, it seeds the list with this single value.
 	KidSQLTable        string
+	KidSQLTables       []string
 	KidPath            string
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions

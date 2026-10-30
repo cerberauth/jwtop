@@ -41,16 +41,19 @@ type ExternalToolOptions = checkbase.ExternalToolOptions
 type ExternalToolEvent = checkbase.ExternalToolEvent
 
 type ProbeOptions struct {
-	URL                string
-	ExpectedStatus     int
-	PublicKeyPEM       []byte
-	Candidates         []string
-	Workers            int
-	Delay              time.Duration
-	Probe              *probe.Probe
-	Reporters          []harnessx.Reporter
-	Engine             *harnessx.Engine
+	URL            string
+	ExpectedStatus int
+	PublicKeyPEM   []byte
+	Candidates     []string
+	Workers        int
+	Delay          time.Duration
+	Probe          *probe.Probe
+	Reporters      []harnessx.Reporter
+	Engine         *harnessx.Engine
+	// KidSQLTable is deprecated: use KidSQLTables. When KidSQLTables is
+	// empty and this is set, it seeds the list with this single value.
 	KidSQLTable        string
+	KidSQLTables       []string
 	KidPath            string
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
@@ -142,7 +145,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 	pctx := &checkbase.ProbeCtx{
 		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
 		Candidates: opts.Candidates, Workers: opts.Workers, ExpectedStatus: opts.ExpectedStatus,
-		Offline: offline, KidSQLTable: opts.KidSQLTable, KidPath: opts.KidPath,
+		Offline: offline, KidSQLTable: opts.KidSQLTable, KidSQLTables: opts.KidSQLTables, KidPath: opts.KidPath,
 		TokenLocation:      opts.TokenLocation.WithDefaults(),
 		ExternalTools:      opts.ExternalTools,
 		ExternalToolEvents: opts.ExternalToolEvents,
