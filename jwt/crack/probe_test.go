@@ -573,11 +573,24 @@ func TestProbeAll_Delay_RespectsContextCancellation(t *testing.T) {
 
 	token := makeHS256Token(t, "secret")
 	start := time.Now()
-	_, _, err := crack.ProbeAll(ctx, token, crack.ProbeOptions{URL: srv.URL, Delay: 5 * time.Second})
+	results, _, err := crack.ProbeAll(ctx, token, crack.ProbeOptions{URL: srv.URL, Delay: 5 * time.Second})
 	elapsed := time.Since(start)
 
-	assert.Error(t, err, "context deadline should cut the delay short")
-	assert.Less(t, elapsed, 2*time.Second, "delay transport should respect context cancellation instead of sleeping the full delay")
+	// The underlying rate limiter fails fast as soon as it can tell a wait
+	// would outlive the context's deadline, rather than actually sleeping
+	// up to that deadline - so this finishes well under it, and the
+	// context's own Err() may still be nil when checks observe it.
+	assert.Less(t, elapsed, 2*time.Second, "delay should respect context cancellation instead of sleeping the full delay")
+
+	if err == nil {
+		errored := 0
+		for _, r := range results {
+			if r.Err != nil {
+				errored++
+			}
+		}
+		assert.Greater(t, errored, 0, "some checks should fail once the rate limiter can no longer honor the context deadline")
+	}
 }
 
 // Offline mode tests (no URL provided).

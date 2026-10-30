@@ -6,8 +6,8 @@ import (
 	"time"
 
 	"github.com/cerberauth/harnessx"
+	"github.com/cerberauth/harnessx/checkdef"
 	"github.com/cerberauth/harnessx/probe"
-	xharnessx "github.com/cerberauth/x/harnessx"
 	"github.com/cerberauth/x/reportx/harnessreport"
 )
 
@@ -118,4 +118,4 @@ type ExternalToolEvent struct {
 	CandidatesCount int
 }
 
-type CheckDef = xharnessx.CheckDef
+type CheckDef = checkdef.CheckDef

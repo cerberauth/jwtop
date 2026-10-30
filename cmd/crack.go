@@ -115,17 +115,13 @@ Use only against systems you own or have explicit written permission to test.`,
 			reporters.WithPrefix("jwt.crack"),
 		)
 
-		formatter, err := cobrareportx.FormatterFromFlags(cmd)
-		if err != nil {
-			return err
-		}
-		writer, cleanup, err := cobrareportx.WriterFromFlags(cmd)
+		sinks, cleanup, err := cobrareportx.SinksFromFlags(cmd)
 		if err != nil {
 			return err
 		}
 		defer cleanup()
 
-		httpTransport, err := cobrareportx.HTTPTransportFromFlags(cmd)
+		showAllFindings, err := cobrareportx.ShowAllFindingsFromFlags(cmd)
 		if err != nil {
 			return err
 		}
@@ -134,9 +130,8 @@ Use only against systems you own or have explicit written permission to test.`,
 			ToolName:        name,
 			ToolVersion:     toolVersion,
 			Title:           "JWT Security Scan",
-			Formatter:       formatter,
-			Writer:          writer,
-			Transport:       httpTransport,
+			Sinks:           sinks,
+			ShowAllFindings: showAllFindings,
 			CheckDefs:       crack.CheckDefs(),
 			BaselineCheckID: crack.BaselineCheckID,
 		})
@@ -169,7 +164,7 @@ Use only against systems you own or have explicit written permission to test.`,
 		for _, r := range results {
 			if r.Err != nil {
 				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
-				fmt.Fprintf(os.Stderr, "[!] %s: %v\n", r.Name, r.Err)
+				cobrareportx.WriteStatus(cmd, fmt.Sprintf("[!] %s: %v\n", r.Name, r.Err))
 			}
 		}
 
