@@ -31,13 +31,13 @@ const maxFindings = 10
 
 // send builds and sends the probe request for token, returning its status
 // code and body.
-func send(ctx context.Context, pctx *checkbase.ProbeCtx, target harnessx.Target, token string) (status int, body []byte, err error) {
+func send(ctx context.Context, pctx *checkbase.ProbeCtx, target harnessx.Target, token string) (int, []byte, error) {
 	req, err := checkbase.NewTokenRequest(ctx, target.URL, token, pctx.TokenLocation)
 	if err != nil {
 		return 0, nil, err
 	}
-	status, _, body, _, err = probe.Do(ctx, pctx.Probe.Client(), req)
-	return status, body, err
+	resp, err := probe.DoResponse(ctx, pctx.Probe.Client(), req)
+	return resp.StatusCode, resp.Body, err
 }
 
 var Check = checkdef.NewCheck(Def,

@@ -200,7 +200,7 @@ Use only against systems you own or have explicit written permission to test.`,
 		for _, r := range results {
 			if r.Err != nil {
 				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
-				fmt.Fprintf(os.Stderr, "[!] %s: %v\n", r.Name, r.Err)
+				cobrareportx.WriteStatus(cmd, fmt.Sprintf("[!] %s: %v\n", r.Name, r.Err))
 			}
 		}
 

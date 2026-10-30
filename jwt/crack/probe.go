@@ -2,8 +2,6 @@ package crack
 
 import (
 	"context"
-	"net/http"
-	"sync"
 	"time"
 
 	"github.com/cerberauth/harnessx"
@@ -25,6 +23,7 @@ import (
 	weaksecret "github.com/cerberauth/jwtop/jwt/crack/checks/weak_secret"
 	x5cinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5c_injection"
 	x5uinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5u_injection"
+	"golang.org/x/time/rate"
 )
 
 type ProbeResult = checkbase.ProbeResult
@@ -129,7 +128,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 	if p == nil && !offline {
 		var probeOpts []probe.Option
 		if opts.Delay > 0 {
-			probeOpts = append(probeOpts, probe.WithTransport(&delayTransport{delay: opts.Delay, base: http.DefaultTransport}))
+			probeOpts = append(probeOpts, probe.WithRateLimiter(rate.NewLimiter(rate.Every(opts.Delay), 1)))
 		}
 		p = probe.New(probeOpts...)
 	}
@@ -194,51 +193,17 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 				Skipped:    true,
 				SkipReason: r.SkipReason,
 			})
+		} else if r.Err != nil {
+			// The check's Run returned a plain error (e.g. the probe request
+			// itself failed - network error, cancelled context, ...) instead
+			// of a Result carrying ProbeResult data, so there's no payload to
+			// recover. Surface it as an errored result rather than silently
+			// dropping the check from results.
+			results = append(results, ProbeResult{
+				Name: defs[r.CheckID].Name,
+				Err:  r.Err,
+			})
 		}
 	}
 	return results, baselineStatus, nil
-}
-
-// delayTransport enforces a minimum spacing of delay between outgoing
-// requests, so probe requests are spread out to avoid tripping target rate
-// limits or WAFs. Checks run concurrently, so spacing is serialized across
-// all callers sharing the transport rather than applied independently per
-// request.
-type delayTransport struct {
-	delay time.Duration
-	base  http.RoundTripper
-
-	mu   sync.Mutex
-	next time.Time
-}
-
-func (t *delayTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	if err := t.wait(req.Context()); err != nil {
-		return nil, err
-	}
-	return t.base.RoundTrip(req)
-}
-
-func (t *delayTransport) wait(ctx context.Context) error {
-	t.mu.Lock()
-	now := time.Now()
-	start := now
-	if t.next.After(start) {
-		start = t.next
-	}
-	t.next = start.Add(t.delay)
-	t.mu.Unlock()
-
-	d := start.Sub(now)
-	if d <= 0 {
-		return nil
-	}
-	timer := time.NewTimer(d)
-	defer timer.Stop()
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	case <-timer.C:
-		return nil
-	}
 }
