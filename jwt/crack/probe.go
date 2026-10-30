@@ -55,10 +55,17 @@ type ProbeOptions struct {
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
-	JKUServerAddr      string
-	X5UServerAddr      string
-	Fuzz               bool
-	FuzzMaxStringLen   int
+	// JKUServerAddr / X5UServerAddr enable the jku_injection / x5u_injection
+	// checks (skipped by default when unset) by giving jwtop a bind address
+	// for the local JWKS / certificate server it stands up to host the
+	// forged key material. The address must be reachable by the *target*
+	// being probed, not merely by jwtop itself — see checkbase.ProbeCtx's
+	// doc comments on these same two fields for the full requirement and
+	// pointers to the underlying exploit.NewJWKSServer / NewCertServer.
+	JKUServerAddr    string
+	X5UServerAddr    string
+	Fuzz             bool
+	FuzzMaxStringLen int
 }
 
 // buildChecks returns the full set of registered checks along with a

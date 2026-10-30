@@ -365,8 +365,8 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 | `--delay` | Delay between probe requests to the target URL, e.g. `200ms` (default: no delay) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
-| `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` (must be reachable by the target; check is skipped if unset) |
-| `--x5u-server-addr` | Bind address for a local certificate server used by the `x5uinjection` check, e.g. `0.0.0.0:8090` (must be reachable by the target; check is skipped if unset) |
+| `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` — must be an address the *target* can reach, not just jwtop (`127.0.0.1`/`localhost` only work when the target runs on the same host as jwtop); check is skipped if unset. See [callback requirements](#callback-requirements-jkuinjection--x5uinjection) below |
+| `--x5u-server-addr` | Bind address for a local certificate server used by the `x5uinjection` check, e.g. `0.0.0.0:8090` — same reachability requirement as `--jku-server-addr`; check is skipped if unset |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
@@ -394,6 +394,14 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 **`fuzz`** — off by default, enabled with `--fuzz`. Complements the fixed checks above by mutating every claim value (type confusion, an oversized string, special characters, an explicit null) and comparing each mutated response against a reference response captured from the original token. It flags a mutation when the response diverges: a `5xx` status, a leaked stack trace/exception, or a body length far from the reference's — signs of a parsing bug the fixed checks don't target. `--fuzz-max-string-len` controls the oversized-string payload length.
 
 > Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
+
+#### Callback requirements (`jkuinjection` / `x5uinjection`)
+
+Both checks work by standing up a local server (a JWKS endpoint for `jkuinjection`, a certificate endpoint for `x5uinjection`) and pointing the forged token's `jku`/`x5u` header at it, so the target fetches attacker-controlled key material when it validates the token. For that to happen, `--jku-server-addr`/`--x5u-server-addr` must be a bind address the *target server* can actually reach over the network — not merely an address jwtop itself can bind to.
+
+- `127.0.0.1:0` / `localhost:0` only work when the target runs on the same host as jwtop (e.g. testing a local dev server). Against a remote target, bind to a publicly reachable interface and port instead — `0.0.0.0:8089` behind a port you've opened on your host/firewall, or the local endpoint of a reverse tunnel (ngrok, a VPS with a forwarded port, etc.) that the target can resolve and connect to.
+- Leave the flag unset and the check is skipped outright — jwtop has no way to guess an address the target can reach, so it doesn't try.
+- Internally, each check calls `exploit.JKUInjectionWithLocalServer`/`exploit.X5UInjectionWithLocalServer`, which starts the server on the given address via `exploit.NewJWKSServer`/`exploit.NewCertServer` and reads the URL to inject from the returned server's `URL()` method — so whatever address you pass is exactly what ends up in the forged token's header, with no extra translation.
 
 ```sh
 # Offline — detect cryptographic weaknesses

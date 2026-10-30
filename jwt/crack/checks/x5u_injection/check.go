@@ -18,6 +18,11 @@ var Def = checkdef.MustParseCheckDefYAML("x5u_injection", checkYAML)
 
 var Check = checkdef.NewCheck(Def, run, checkdef.WithSkip(harnessx.SkipWhen(skip)))
 
+// skip requires pctx.X5UServerAddr — an address the *target server* can
+// reach, not merely one jwtop can bind to (127.0.0.1 only works when the
+// target runs on the same host as jwtop). See checkbase.ProbeCtx's doc
+// comment on X5UServerAddr for the full requirement and how the resulting
+// local certificate server is addressed.
 func skip(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
 	pctx := target.Data.(*checkbase.ProbeCtx)
 	if pctx.Offline {
@@ -27,7 +32,7 @@ func skip(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) str
 		return "x5u injection not applicable for " + pctx.Alg
 	}
 	if pctx.X5UServerAddr == "" {
-		return "no X5U callback address configured (set X5UServerAddr)"
+		return "no X5U callback address configured (set X5UServerAddr to an address the target can reach)"
 	}
 	return ""
 }

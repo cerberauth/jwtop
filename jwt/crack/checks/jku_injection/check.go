@@ -18,6 +18,11 @@ var Def = checkdef.MustParseCheckDefYAML("jku_injection", checkYAML)
 
 var Check = checkdef.NewCheck(Def, run, checkdef.WithSkip(harnessx.SkipWhen(skip)))
 
+// skip requires pctx.JKUServerAddr — an address the *target server* can
+// reach, not merely one jwtop can bind to (127.0.0.1 only works when the
+// target runs on the same host as jwtop). See checkbase.ProbeCtx's doc
+// comment on JKUServerAddr for the full requirement and how the resulting
+// local JWKS server is addressed.
 func skip(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) string {
 	pctx := target.Data.(*checkbase.ProbeCtx)
 	if pctx.Offline {
@@ -27,7 +32,7 @@ func skip(_ context.Context, target harnessx.Target, _ harnessx.ResultStore) str
 		return "jku injection not applicable for " + pctx.Alg
 	}
 	if pctx.JKUServerAddr == "" {
-		return "no JKU callback address configured (set JKUServerAddr)"
+		return "no JKU callback address configured (set JKUServerAddr to an address the target can reach)"
 	}
 	return ""
 }
