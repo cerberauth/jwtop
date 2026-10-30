@@ -1,0 +1,66 @@
+---
+title: Inspect an unknown JWT
+description: Decode and read a JWT's header and claims without needing the signing key.
+---
+
+When you receive a JWT from a third-party service, a log, or a debug session, you often want to read its content before you have the signing key or know the algorithm. `jwtop decode` does this without any key material.
+
+## With the CLI
+
+```sh
+jwtop decode <token>
+```
+
+Example — inspect a token from an environment variable:
+
+```sh
+jwtop decode $ACCESS_TOKEN
+```
+
+Output:
+
+```
+Header:
+{
+  "alg": "RS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT",  // Type — media type of the token, typically "JWT"
+  "kid": "abc123"  // Key ID — hints which key was used to sign the token
+}
+
+Claims:
+{
+  "sub": "user-42",  // Subject — the principal the token is about
+  "iss": "https://auth.example.com",  // Issuer — who created and signed the token
+  "aud": "api.example.com",  // Audience — intended recipient(s) of the token
+  "exp": 1740000000,  // Expiration Time — token must be rejected after this time — 2025-02-19T22:40:00Z (some time ago)
+  "iat": 1739996400,  // Issued At — when the token was created — 2025-02-19T21:40:00Z (some time ago)
+  "roles": ["admin", "editor"]
+}
+
+Signature:
+<base64url>
+
+⚠ Token is EXPIRED (expired some time ago)
+```
+
+By default, `jwtop decode` appends a short description to every registered header/claim field it recognizes, right next to the value as an inline `// comment` — no need to cross-reference a separate table. `exp`/`nbf`/`iat` also get a human-readable date next to the raw Unix value, and a one-line expiry status prints after the signature. Custom, app-specific claims (like `roles` above) are left as-is.
+
+This annotated output isn't valid JSON (the comments aren't part of the JSON grammar). Pass `--raw` to get plain, valid JSON with no comments or expiry status — e.g. for piping into `jq` or another tool:
+
+```sh
+jwtop decode --raw $ACCESS_TOKEN
+```
+
+## What to look for
+
+| Field | Description |
+|---|---|
+| `alg` | Signing algorithm — determines what key type to use for verification |
+| `kid` | Key ID — use with a JWKS endpoint to fetch the right public key |
+| `exp` | Expiration timestamp (Unix) — check if the token is still valid |
+| `iss` | Issuer — confirms the token origin |
+| `sub` | Subject — the principal the token represents |
+
+## Next step
+
+Once you know the algorithm and have the key, use [`jwtop verify`](../reference/cli/verify) to confirm the signature.

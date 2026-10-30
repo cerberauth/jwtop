@@ -10,14 +10,19 @@ import (
 	algnone "github.com/cerberauth/jwtop/jwt/crack/checks/alg_none"
 	"github.com/cerberauth/jwtop/jwt/crack/checks/baseline"
 	blanksecret "github.com/cerberauth/jwtop/jwt/crack/checks/blank_secret"
+	claimfuzz "github.com/cerberauth/jwtop/jwt/crack/checks/fuzz"
 	hmacconfusion "github.com/cerberauth/jwtop/jwt/crack/checks/hmac_confusion"
+	jkuinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jku_injection"
 	jwkinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jwk_injection"
 	kidpathtraversal "github.com/cerberauth/jwtop/jwt/crack/checks/kid_path_traversal"
 	kidsqlinjection "github.com/cerberauth/jwtop/jwt/crack/checks/kid_sql_injection"
 	noverification "github.com/cerberauth/jwtop/jwt/crack/checks/no_verification"
 	nullsignature "github.com/cerberauth/jwtop/jwt/crack/checks/null_signature"
 	psychicsignature "github.com/cerberauth/jwtop/jwt/crack/checks/psychic_signature"
+	timestamptampering "github.com/cerberauth/jwtop/jwt/crack/checks/timestamp_tampering"
 	weaksecret "github.com/cerberauth/jwtop/jwt/crack/checks/weak_secret"
+	x5cinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5c_injection"
+	x5uinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5u_injection"
 	"golang.org/x/time/rate"
 )
 
@@ -44,21 +49,29 @@ type ProbeOptions struct {
 	Delay              time.Duration
 	Probe              *probe.Probe
 	Reporters          []harnessx.Reporter
+	Engine             *harnessx.Engine
 	KidSQLTable        string
 	KidPath            string
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
+	JKUServerAddr      string
+	X5UServerAddr      string
+	Fuzz               bool
+	FuzzMaxStringLen   int
 }
 
 // buildChecks returns the full set of registered checks along with a
 // per-check metadata map (name plus CVSS/CWE/OWASP scoring) keyed by
 // CheckID, since harnessx.Check itself carries no scoring metadata.
-func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
-	checks := make([]harnessx.Check, 0, len(algnone.Checks)+10)
-	checks = append(checks, baseline.Check, noverification.Check)
-	checks = append(checks, algnone.Checks...)
-	checks = append(checks,
+// BuildChecks returns the full jwtop JWT check registry (baseline + every
+// crack check) and their metadata, in dependency order. Exported so callers
+// embedding jwtop's checks in their own harnessx.Engine (rather than going
+// through ProbeAll) build the exact same check list ProbeAll uses.
+func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
+	checks := []harnessx.Check{
+		baseline.Check, noverification.Check,
+		algnone.Check,
 		blanksecret.Check,
 		nullsignature.Check,
 		hmacconfusion.Check,
@@ -66,13 +79,16 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		kidsqlinjection.Check,
 		kidpathtraversal.Check,
 		jwkinjection.Check,
+		jkuinjection.Check,
+		x5cinjection.Check,
+		x5uinjection.Check,
 		weaksecret.Check,
-	)
+		timestamptampering.Check,
+		claimfuzz.Check,
+	}
 
 	defs := make(map[harnessx.CheckID]CheckDef, len(checks))
-	for _, c := range algnone.Checks {
-		defs[c.ID] = algnone.Def
-	}
+	defs[algnone.Check.ID] = algnone.Def
 	defs[noverification.Check.ID] = noverification.Def
 	defs[blanksecret.Check.ID] = blanksecret.Def
 	defs[nullsignature.Check.ID] = nullsignature.Def
@@ -81,7 +97,12 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[kidsqlinjection.Check.ID] = kidsqlinjection.Def
 	defs[kidpathtraversal.Check.ID] = kidpathtraversal.Def
 	defs[jwkinjection.Check.ID] = jwkinjection.Def
+	defs[jkuinjection.Check.ID] = jkuinjection.Def
+	defs[x5cinjection.Check.ID] = x5cinjection.Def
+	defs[x5uinjection.Check.ID] = x5uinjection.Def
 	defs[weaksecret.Check.ID] = weaksecret.Def
+	defs[timestamptampering.Check.ID] = timestamptampering.Def
+	defs[claimfuzz.Check.ID] = claimfuzz.Def
 	for _, c := range checks {
 		def := defs[c.ID]
 		def.Name = c.Name
@@ -94,7 +115,7 @@ func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 // description) keyed by CheckID, for callers that need to enrich results
 // outside of ProbeAll (e.g. a harnessx.Reporter).
 func CheckDefs() map[harnessx.CheckID]CheckDef {
-	_, defs := buildChecks()
+	_, defs := BuildChecks()
 	return defs
 }
 
@@ -118,19 +139,29 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		TokenLocation:      opts.TokenLocation.WithDefaults(),
 		ExternalTools:      opts.ExternalTools,
 		ExternalToolEvents: opts.ExternalToolEvents,
+		JKUServerAddr:      opts.JKUServerAddr,
+		X5UServerAddr:      opts.X5UServerAddr,
+		FuzzEnabled:        opts.Fuzz,
+		FuzzMaxStringLen:   opts.FuzzMaxStringLen,
 	}
 
-	checks, defs := buildChecks()
+	checks, defs := BuildChecks()
 
-	var engineOpts []harnessx.Option
-	if len(opts.Reporters) > 0 {
-		engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
+	var summary harnessx.ScanSummary
+	var err error
+	if opts.Engine != nil {
+		summary, err = opts.Engine.RunScenario(ctx, harnessx.Target{URL: opts.URL, Data: pctx}, harnessx.Scenario{Checks: checks})
+	} else {
+		var engineOpts []harnessx.Option
+		if len(opts.Reporters) > 0 {
+			engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
+		}
+		engine := harnessx.New(engineOpts...)
+		if regErr := engine.Register(checks...); regErr != nil {
+			return nil, 0, regErr
+		}
+		summary, err = engine.Run(ctx, harnessx.Target{URL: opts.URL, Data: pctx})
 	}
-	engine := harnessx.New(engineOpts...)
-	if err := engine.Register(checks...); err != nil {
-		return nil, 0, err
-	}
-	summary, err := engine.Run(ctx, harnessx.Target{URL: opts.URL, Data: pctx})
 	if err != nil {
 		return nil, 0, err
 	}
@@ -142,10 +173,16 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 			if r.Err != nil {
 				return nil, 0, r.Err
 			}
-			baselineStatus, _ = harnessx.DataAs[int](r)
+			baselineSnap, _ := harnessx.DataAs[harnessx.Snapshot](r)
+			baselineStatus = baselineSnap.StatusCode
 			continue
 		}
 		if pr, ok := harnessx.DataAs[ProbeResult](r); ok {
+			if pr.Name == "" {
+				pr.Name = defs[r.CheckID].Name
+			}
+			results = append(results, pr)
+		} else if pr, ok := checkbase.ResolveVariantResult(r.Attempts); ok {
 			if pr.Name == "" {
 				pr.Name = defs[r.CheckID].Name
 			}

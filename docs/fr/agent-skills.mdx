@@ -1,0 +1,96 @@
+---
+title: Agent Skills
+description: Pilotez jwtop depuis un agent de code avec des requêtes en langage naturel — décodez, auditez et forgez des JWT sans taper chaque commande.
+sidebar:
+  order: 4
+---
+
+import { Card, CardGrid, Aside, Tabs, TabItem } from '@/components/docs';
+
+`jwtop` fournit quatre [Agent Skills](https://www.anthropic.com/engineering/equipping-agents-for-the-real-world-with-agent-skills) dans [`skills/`](https://github.com/cerberauth/jwtop/tree/main/skills) — des packages `SKILL.md` portables qui apprennent à un agent de code à piloter la CLI pour des tâches JWT : décoder, auditer et forger des tokens, à partir d'une requête en langage naturel plutôt qu'une commande tapée. Le format est ouvert, non lié à un outil unique — Claude Code, Cursor, OpenCode, Codex et d'autres agents qui chargent des packages `SKILL.md` peuvent tous les utiliser.
+
+<CardGrid>
+  <Card title="jwtop" icon="setting">
+    Pilote générique pour l'ensemble de la CLI : decode, verify, create, sign, crack, exploit. À utiliser quand la demande ne correspond pas aux trois autres.
+  </Card>
+  <Card title="jwt-decode-explain" icon="magnifier">
+    Collez un token, obtenez une explication en langage naturel de l'en-tête/des claims et *pourquoi* certains champs sont à risque. Lecture seule — n'affirme jamais qu'une signature est valide.
+  </Card>
+  <Card title="jwt-security-audit" icon="warning">
+    Exécute `crack` (vérifications crypto hors ligne, plus une sonde en direct si un endpoint est dans le périmètre) et transforme les résultats bruts en verdict par classe de vulnérabilité avec remédiation.
+  </Card>
+  <Card title="jwt-token-forge" icon="pencil">
+    Transforme une spécification — claims, algorithme, type de clé — en un vrai JWT de test signé, en générant une paire de clés RSA/EC avec `openssl` si vous n'en avez pas déjà une.
+  </Card>
+</CardGrid>
+
+## Installation
+
+<Tabs>
+  <TabItem label="npx skills (tout agent)">
+
+[`npx skills`](https://github.com/vercel-labs/skills) est un installateur ouvert pour les packages `SKILL.md` — il détecte l'agent que vous utilisez et dépose la skill dans le répertoire de cet agent pour vous :
+
+```sh
+npx skills add cerberauth/jwtop --skill jwtop
+npx skills add cerberauth/jwtop --skill jwt-decode-explain
+npx skills add cerberauth/jwtop --skill jwt-security-audit
+npx skills add cerberauth/jwtop --skill jwt-token-forge
+```
+
+  </TabItem>
+  <TabItem label="Claude Code (manuel)">
+
+Claude Code découvre automatiquement les skills depuis `.claude/skills/` (au niveau du projet) ou `~/.claude/skills/` (personnel, pour tous les projets). Un simple répertoire `skills/` à la racine — la façon dont elles sont distribuées dans le dépôt — n'est pas détecté tout seul.
+
+Dans un checkout de `jwtop`, créez un lien symbolique vers le répertoire `skills/` du dépôt :
+
+```sh
+git clone https://github.com/cerberauth/jwtop.git
+cd jwtop
+ln -s ../skills .claude/skills
+```
+
+Dans un autre projet, copiez celles que vous voulez dans votre répertoire de skills personnel pour qu'elles soient disponibles partout :
+
+```sh
+git clone https://github.com/cerberauth/jwtop.git /tmp/jwtop
+cp -r /tmp/jwtop/skills/jwtop \
+      /tmp/jwtop/skills/jwt-decode-explain \
+      /tmp/jwtop/skills/jwt-security-audit \
+      /tmp/jwtop/skills/jwt-token-forge \
+      ~/.claude/skills/
+```
+
+  </TabItem>
+  <TabItem label="Autres agents (manuel)">
+
+Les skills sont de simples packages `SKILL.md` sans convention spécifique à jwtop — un en-tête frontmatter `name`/`description` suivi d'instructions Markdown, avec optionnellement un sous-dossier `references/` que l'agent lit à la demande. Consultez la documentation de votre agent pour savoir où il découvre les fichiers `SKILL.md` (souvent un répertoire de skills configurable ou un mécanisme de plugin/marketplace) et pointez-le vers les dossiers sous `skills/`.
+
+  </TabItem>
+</Tabs>
+
+Dans tous les cas, chaque skill suppose que `jwtop` est déjà dans le `PATH` (`go install github.com/cerberauth/jwtop@latest`, ou `go build -o jwtop .` depuis un checkout) — voir [Installation](./installation/).
+
+## Exemples de prompts
+
+| Vous dites | Skill déclenchée | Ce qu'il se passe |
+|---|---|---|
+| « Qu'y a-t-il dans ce token ? `eyJhbGciOi...` » | `jwt-decode-explain` | Décode l'en-tête/les claims, explique chaque champ, signale ceux à risque (`alg=none`, `exp` manquant, `jwk` embarqué, ...) |
+| « Ce JWT/cette API est-il sécurisé ? » | `jwt-security-audit` | Exécute `jwtop crack`, interprète les résultats par catégorie CWE/CVSS/OWASP, renvoie des corrections classées par ce qui est réellement exploitable |
+| « Donne-moi un token de test RS256 avec sub=user123, expirant dans 1h » | `jwt-token-forge` | Génère une paire de clés RSA si nécessaire, exécute `jwtop create`, renvoie le token signé |
+| « Cet endpoint accepte-t-il alg=none ? » | `jwtop` | Exécute `jwtop exploit algnone` / `jwtop crack --url` et rapporte le résultat |
+
+<Aside type="caution">
+  `crack --url` et `exploit` envoient des requêtes en direct ou produisent des tokens falsifiables. Les skills ne sondent un endpoint en production que lorsque vous avez établi qu'il s'agit de votre propre système, d'un environnement de staging, ou d'un engagement de pentest/CTF autorisé — ne les pointez jamais vers une cible tierce sans autorisation.
+</Aside>
+
+## Sous le capot
+
+Chaque skill est un `SKILL.md` accompagné de documentation de référence que l'agent lit à la demande :
+
+- `jwtop/references/techniques.md` — détails CWE/CVSS/comportement pour chaque technique `crack`/`exploit`
+- `jwt-decode-explain/references/risks.md` — le catalogue complet des risques derrière l'explication du decode
+- `jwt-security-audit/references/remediation.md` — des recommandations de correction concrètes par résultat, indexées par nom de rapport
+
+Consultez le code source des skills sur GitHub pour la logique de déclenchement complète et le workflow suivi par chacune.

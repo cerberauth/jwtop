@@ -1,0 +1,95 @@
+---
+title: genkey
+description: Génère une clé de signature cryptographiquement sécurisée pour un algorithme JWT.
+---
+
+Génère une clé de signature ou un secret pour un algorithme JWT. Vous choisissez
+l'algorithme, la taille et l'encodage ; JWTop refuse les paramètres qui produiraient une clé faible.
+
+`genkey` est aussi disponible sous le nom `generate-key`.
+
+## Utilisation
+
+```sh
+jwtop genkey --alg <alg> [options]
+```
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--alg` | Algorithme cible **(obligatoire)**. Parmi `HS256`, `HS384`, `HS512`, `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`, `ES256`, `ES384`, `ES512`, `EdDSA` |
+| `--rsa-bits` | Taille du module RSA en bits. Algorithmes RSA uniquement. Par défaut `2048`, minimum `2048` |
+| `--secret-bytes` | Longueur du secret HMAC en octets. Algorithmes HMAC uniquement. Par défaut, correspond à la taille de sortie du MAC (32 / 48 / 64 pour HS256 / HS384 / HS512) ; les valeurs plus courtes sont rejetées |
+| `--secret-format` | Encodage du secret HMAC : `base64url` (par défaut), `base64`, `hex`, `raw` |
+| `--out` | Écrit la clé dans ce chemin au lieu de stdout. Pour les algorithmes asymétriques, la clé publique est écrite dans `<out>.pub` |
+| `--force` | Écrase les fichiers existants au chemin `--out` |
+| `--public-only` | N'émet que la clé publique. Algorithmes asymétriques uniquement |
+
+## Paramètres de sécurité par défaut
+
+- **CSPRNG uniquement.** Chaque octet provient de `crypto/rand` de Go.
+- **RSA ≥ 2048 bits.** Le seuil minimal défini par [NIST SP 800-57](https://csrc.nist.gov/pubs/sp/800/57/pt1/r5/final) et la [RFC 7518](https://www.rfc-editor.org/rfc/rfc7518). Choisissez `3072` ou `4096` pour une marge de sécurité plus large.
+- **Secret HMAC ≥ taille de sortie du MAC.** Un secret plus court que la sortie du hash affaiblit la construction ; `--secret-bytes` ne peut donc pas descendre sous 32 / 48 / 64.
+- **Courbe ECDSA fixée par l'algorithme.** `ES256` → P-256, `ES384` → P-384, `ES512` → P-521.
+- **Encodage PEM.** Les clés privées sont au format PKCS#8 (`PRIVATE KEY`), les clés publiques au format PKIX (`PUBLIC KEY`).
+- **Permissions des fichiers.** Les clés privées et secrets sont écrits en `0600`, les clés publiques en `0644`. Les fichiers existants ne sont jamais écrasés sans `--force`.
+
+## Sortie
+
+Sans `--out`, la clé est affichée sur stdout :
+
+- **HMAC** — le secret encodé sur une seule ligne.
+- **Asymétrique** — le PEM de la clé privée suivi du PEM de la clé publique (ou uniquement la clé publique avec `--public-only`).
+
+Avec `--out`, les fichiers sont écrits et une ligne de confirmation est affichée sur stderr.
+
+## Exemples
+
+**Secret HS256 sur stdout (base64url)**
+
+```sh
+jwtop genkey --alg HS256
+```
+
+**Secret HS512 de 64 octets en hexadécimal**
+
+```sh
+jwtop genkey --alg HS512 --secret-bytes 64 --secret-format hex
+```
+
+**Paire de clés RSA 3072 bits dans des fichiers**
+
+```sh
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+# écrit private.pem (0600) et private.pem.pub (0644)
+```
+
+**Paire de clés ECDSA P-256, puis génération d'un token avec cette clé**
+
+```sh
+jwtop genkey --alg ES256 --out es256
+jwtop create --alg ES256 --key es256 --sub user123 --exp 1h
+```
+
+**Clé publique seule, pour un vérificateur**
+
+```sh
+jwtop genkey --alg RS256 --public-only
+```
+
+## Chaînage avec un pipe
+
+Envoyez directement un secret HMAC généré vers une autre commande :
+
+```sh
+jwtop genkey --alg HS256 --secret-format raw > secret.key
+jwtop create --alg HS256 --secret "$(cat secret.key)" --sub user123
+```
+
+## Gestion des clés générées
+
+La clé privée ou le secret affiché est une donnée sensible. Stockez-le dans un
+gestionnaire de secrets, ne le versionnez jamais, et faites-le tourner
+régulièrement. Pour des architectures multi-services, ne distribuez que la clé
+publique et publiez un endpoint JWKS.

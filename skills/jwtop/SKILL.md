@@ -5,10 +5,15 @@ description: Drive the jwtop CLI (github.com/cerberauth/jwtop) for any JWT task 
 
 # jwtop
 
-jwtop is a Go CLI (this repo) covering the full JWT lifecycle: `decode`,
-`verify`, `create`, `sign`, plus a security-testing layer: `crack` (analyze/probe
-for vulnerabilities) and `exploit` (apply one known technique, print the
-resulting token).
+jwtop is a Go CLI (this repo) covering the full JWT lifecycle: `find`
+(extract a hidden token from text), `decode`, `diff` (compare tokens),
+`verify`, `create`, `sign`, plus a security-testing layer: `crack`
+(analyze/probe for vulnerabilities) and `exploit` (apply one known
+technique, print the resulting token).
+
+Every command that takes `<token>` also reads it from stdin when the
+argument is omitted, so `find` composes directly into a pipeline with any
+of them: `jwtop find --file page.html | jwtop decode`.
 
 **`crack` and `exploit` are for authorized testing only** — your own
 systems, a pentest engagement with signed-off scope, or a CTF. Never point
@@ -35,7 +40,9 @@ perform up front on every task:
 
 | User wants to... | Command |
 |---|---|
+| Pull a JWT out of a URL, JSON blob, HTML page, log file, or other text where it's buried | `find` |
 | See what's inside a token (no trust implied) | `decode` |
+| See what changed between two (or more) tokens | `diff` |
 | Confirm a token's signature is valid | `verify` |
 | Mint a brand-new token from scratch | `create` |
 | Change an existing token's algorithm/key/claims-signature | `sign` |
@@ -48,6 +55,20 @@ baseline, and emits a report. `exploit <technique>` is a single tool — it
 always produces a token, with no judgment about whether it will work,
 because it doesn't have a target to test it against.
 
+## find — extract a token hidden in text
+
+```sh
+jwtop find "https://example.com/callback?token=eyJhbGciOiJIUzI1NiJ9...&state=xyz"
+jwtop find --file response.html
+curl -s https://api.example.com/profile | jwtop find
+```
+
+Scans arbitrary text — a URL, a JSON response, an HTML page, a log file, an
+`Authorization` header — and prints every structurally valid JWT found, one
+per line, deduplicated. Reach for this whenever the user hands you a token
+embedded in something bigger rather than the bare token itself. Pipe
+straight into the next command: `jwtop find --file page.html | jwtop decode`.
+
 ## decode — inspect without trusting
 
 ```sh
@@ -59,6 +80,33 @@ this for "what's in this token" questions, or as the first step before
 choosing an exploit (the `alg` field determines which techniques apply: HMAC
 weak-secret / blank-secret / kid-injection need `HS*`; hmacconfusion needs
 `RS*`/`ES*`/`PS*`; psychicsig needs `ES*` specifically).
+
+By default, each registered header/claim field gets a short description
+appended inline as a `// comment` right next to its value (e.g.
+`"alg": "HS256",  // Algorithm — how the token is signed`), and `exp`/`nbf`/
+`iat` also show a human-readable date. A one-line expiry status prints after
+the signature (`⚠ Token is EXPIRED …` / `✓ Token is currently valid …`).
+That output isn't valid JSON (the comments aren't part of the JSON
+grammar) — pass `--raw` for plain, valid header/claims/signature JSON, e.g.
+when piping into `jq`.
+
+## diff — compare two or more tokens
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+Reports which header fields, claims, and the signature differ between a base
+token and each other token — no trust implied, same as `decode`. Reach for
+this over manually eyeballing two `decode` outputs whenever the user wants
+to know *what changed* between a before/after pair (a re-signed token, an
+old vs. refreshed token, tokens for two different users/environments).
+
+`--format text` (default) is for a quick human read; `--format json` gives a
+structured `{key, status: added|removed|changed, base, other}` list per
+token, for scripts and CI. Exits non-zero if any compared token differs from
+the base — usable as a "did the claims change unexpectedly" gate.
 
 ## verify — check a signature
 

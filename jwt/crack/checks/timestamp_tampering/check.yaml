@@ -1,0 +1,14 @@
+id: "timestamptampering"
+name: "Timestamp Tampering"
+description: "Tests if the server accepts a token re-signed with its exp claim pushed into the past, using the HMAC secret recovered by the secret check — i.e. whether exp is actually enforced once the signature checks out."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-timestamp-tampering"
+tags:
+  - hmac
+depends_on:
+  - baseline
+  - secret
+cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
+cvss_score: 8.2
+cwe_id: "CWE-613"
+capec_id: "CAPEC-60"
+owasp: "API2:2023"

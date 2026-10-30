@@ -1,0 +1,40 @@
+---
+title: Référence CLI
+description: Vue d'ensemble de toutes les commandes de la CLI JWTop.
+sidebar:
+  order: 1
+---
+
+import { LinkCard, CardGrid } from '@/components/docs';
+
+La CLI `jwtop` couvre l'ensemble du workflow JWT, y compris les tests de sécurité.
+
+<CardGrid>
+  <LinkCard title="find" description="Extrait des tokens JWT cachés dans du texte, un fichier ou stdin." href="./find/" />
+  <LinkCard title="decode" description="Inspecte l'en-tête et les claims d'un token sans vérifier la signature." href="./decode/" />
+  <LinkCard title="diff" description="Compare deux tokens ou plus et affiche les différences d'en-tête, de claims et de signature." href="./diff/" />
+  <LinkCard title="verify" description="Valide la signature et les claims standard d'un token." href="./verify/" />
+  <LinkCard title="create" description="Génère un nouveau token signé à partir de zéro." href="./create/" />
+  <LinkCard title="genkey" description="Génère des clés de signature sécurisées pour un algorithme." href="./genkey/" />
+  <LinkCard title="sign" description="Re-signe un token existant avec un autre algorithme ou une autre clé." href="./sign/" />
+  <LinkCard title="crack" description="Sonde un serveur à la recherche de vulnérabilités JWT en utilisant tous les exploits connus." href="./crack/" />
+  <LinkCard title="exploit" description="Produit un token modifié avec un exploit de sécurité spécifique appliqué." href="./exploit/" />
+</CardGrid>
+
+Toute commande acceptant un argument `<token>` peut aussi le recevoir via stdin lorsque l'argument est omis, ce qui permet de chaîner les commandes : `jwtop find --file page.html | jwtop decode`.
+
+## Utilisation globale
+
+```sh
+jwtop <command> [flags]
+jwtop --help
+jwtop version
+```
+
+Toutes les commandes retournent `0` en cas de succès et `1` en cas d'erreur. Un échec de vérification retourne également `1`.
+
+## Options globales
+
+| Option | Description |
+|---|---|
+| `--sqa-opt-out` | Désactive les statistiques d'usage anonymes et les rapports de plantage |

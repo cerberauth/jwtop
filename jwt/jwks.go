@@ -107,15 +107,27 @@ func parseECPublicKey(key jwk) (*ecdsa.PublicKey, error) {
 		return nil, fmt.Errorf("decoding EC y coordinate: %w", err)
 	}
 
-	x := new(big.Int).SetBytes(xBytes)
-	y := new(big.Int).SetBytes(yBytes)
-
 	curve, err := getCurve(key.Crv)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ecdsa.PublicKey{Curve: curve, X: x, Y: y}, nil
+	size := (curve.Params().BitSize + 7) / 8
+	if len(xBytes) > size || len(yBytes) > size {
+		return nil, fmt.Errorf("invalid EC coordinates length")
+	}
+
+	data := make([]byte, 1+2*size)
+	data[0] = 0x04
+	copy(data[1+size-len(xBytes):1+size], xBytes)
+	copy(data[1+2*size-len(yBytes):1+2*size], yBytes)
+
+	pub, err := ecdsa.ParseUncompressedPublicKey(curve, data)
+	if err != nil {
+		return nil, fmt.Errorf("parsing EC public key: %w", err)
+	}
+
+	return pub, nil
 }
 
 func getCurve(crv string) (elliptic.Curve, error) {

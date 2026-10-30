@@ -4,12 +4,9 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
 
 env:
-  GO_VERSION: "1.26"
+  GO_VERSION: "1.27"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -20,8 +17,8 @@ permissions:
   packages: read
 
 jobs:
-  run-exploit-cli:
-    name: Exploit CLI
+  build:
+    name: Build jwtop
     runs-on: ubuntu-latest
 
     steps:
@@ -32,27 +29,71 @@ jobs:
         with:
           go-version: ${{ env.GO_VERSION }}
 
+      - name: Build
+        run: go build -o jwtop main.go
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v7
+        with:
+          name: jwtop
+          path: jwtop
+          retention-days: 1
+
+  run-exploit-cli:
+    name: Exploit CLI
+    runs-on: ubuntu-latest
+    needs: build
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Download binary
+        uses: actions/download-artifact@v8
+        with:
+          name: jwtop
+
+      - name: Prepare binary
+        run: chmod +x jwtop
+
       - name: Create test token
         id: create
-        run: echo "jwt=$(go run main.go create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Exploit algnone
-        run: go run main.go exploit algnone ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit algnone ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
       - name: Exploit algnone --all
-        run: go run main.go exploit algnone --all ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit algnone --all ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
       - name: Exploit blanksecret
-        run: go run main.go exploit blanksecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit blanksecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
       - name: Exploit nullsig
-        run: go run main.go exploit nullsig ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit nullsig ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit extendexp
+        run: ./jwtop exploit extendexp ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
+
+      - name: Exploit backdateiat
+        run: ./jwtop exploit backdateiat ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
+
+      - name: Exploit clearnbf
+        run: ./jwtop exploit clearnbf ${{ steps.create.outputs.jwt }} --secret testsecret --sqa-opt-out
 
       - name: Exploit weak / known secret
-        run: go run main.go exploit weaksecret --secret testsecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit weaksecret --secret testsecret ${{ steps.create.outputs.jwt }} --sqa-opt-out
 
       - name: Exploit jwkinjection
-        run: go run main.go exploit jwkinjection ${{ steps.create.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit jwkinjection ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit jkuinjection
+        run: ./jwtop exploit jkuinjection ${{ steps.create.outputs.jwt }} --url http://localhost:8089/jwks.json --sqa-opt-out
+
+      - name: Exploit x5cinjection
+        run: ./jwtop exploit x5cinjection ${{ steps.create.outputs.jwt }} --sqa-opt-out
+
+      - name: Exploit x5uinjection
+        run: ./jwtop exploit x5uinjection ${{ steps.create.outputs.jwt }} --url http://localhost:8090/cert.pem --sqa-opt-out
 
       - name: Generate RSA key pair
         run: |
@@ -61,10 +102,10 @@ jobs:
 
       - name: Create RS256 test token
         id: create-rsa
-        run: echo "jwt=$(go run main.go create --alg RS256 --key private_key.pem --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg RS256 --key private_key.pem --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Exploit hmacconfusion
-        run: go run main.go exploit hmacconfusion ${{ steps.create-rsa.outputs.jwt }} --key public_key.pem --sqa-opt-out
+        run: ./jwtop exploit hmacconfusion ${{ steps.create-rsa.outputs.jwt }} --key public_key.pem --sqa-opt-out
 
       - name: Generate EC key pair
         run: |
@@ -73,59 +114,134 @@ jobs:
 
       - name: Create ES256 test token
         id: create-es256
-        run: echo "jwt=$(go run main.go create --alg ES256 --key ec_private_key.pem --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg ES256 --key ec_private_key.pem --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Exploit psychicsig
-        run: go run main.go exploit psychicsig ${{ steps.create-es256.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop exploit psychicsig ${{ steps.create-es256.outputs.jwt }} --sqa-opt-out
 
       - name: Exploit jwkinjection (ES256)
-        run: go run main.go exploit jwkinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --sqa-opt-out
+        run: ./jwtop exploit jwkinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --sqa-opt-out
+
+      - name: Exploit jkuinjection (ES256)
+        run: ./jwtop exploit jkuinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --url http://localhost:8089/jwks.json --sqa-opt-out
+
+      - name: Exploit x5cinjection (ES256)
+        run: ./jwtop exploit x5cinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --sqa-opt-out
+
+      - name: Exploit x5uinjection (ES256)
+        run: ./jwtop exploit x5uinjection ${{ steps.create-es256.outputs.jwt }} --alg ES256 --url http://localhost:8090/cert.pem --sqa-opt-out
 
   run-jwt-crack-offline:
     name: JWT Crack - Offline Mode
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
       - uses: actions/checkout@v7
 
-      - name: Setup Go environment
-        uses: actions/setup-go@v7
+      - name: Download binary
+        uses: actions/download-artifact@v8
         with:
-          go-version: ${{ env.GO_VERSION }}
+          name: jwtop
+
+      - name: Prepare binary
+        run: chmod +x jwtop
 
       - name: Create weak-secret token
         id: create-weak
-        run: echo "jwt=$(go run main.go create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Offline crack - weak secret
-        run: go run main.go crack ${{ steps.create-weak.outputs.jwt }} --secret testsecret --sqa-opt-out
+        run: ./jwtop crack ${{ steps.create-weak.outputs.jwt }} --secret testsecret --sqa-opt-out
 
       - name: Create blank-secret token
         id: create-blank
-        run: echo "jwt=$(go run main.go create --alg HS256 --secret '' --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg HS256 --secret '' --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Offline crack - blank secret
-        run: go run main.go crack ${{ steps.create-blank.outputs.jwt }} --sqa-opt-out
+        run: ./jwtop crack ${{ steps.create-blank.outputs.jwt }} --sqa-opt-out
 
   run-jwt-crack-scans:
-    name: JWT Crack - ${{ matrix.challenge }}
+    name: JWT Crack - ${{ matrix.challenge }} (${{ matrix.vulnerable && 'vulnerable' || 'not vulnerable' }})
     runs-on: ubuntu-latest
+    needs: build
 
     strategy:
       fail-fast: false
       matrix:
         include:
           - challenge: "jwt-alg-none-bypass"
+            vulnerable: true
+          - challenge: "jwt-alg-none-bypass"
+            vulnerable: false
           - challenge: "jwt-blank-secret"
+            vulnerable: true
+          - challenge: "jwt-blank-secret"
+            vulnerable: false
+          - challenge: "jwt-claim-oversized-value"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-oversized-value"
+            vulnerable: false
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-special-chars"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-special-chars"
+            vulnerable: false
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-type-confusion"
+            vulnerable: true
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-claim-type-confusion"
+            vulnerable: false
+            crack_args: "--fuzz --secret s3cr3t-dev-key"
+          - challenge: "jwt-jku-header-injection"
+            vulnerable: true
+          - challenge: "jwt-jku-header-injection"
+            vulnerable: false
           - challenge: "jwt-jwk-header-injection"
+            vulnerable: true
+          - challenge: "jwt-jwk-header-injection"
+            vulnerable: false
           - challenge: "jwt-kid-path-traversal"
+            vulnerable: true
+            crack_args: "--kid-path /dev/null"
+          - challenge: "jwt-kid-path-traversal"
+            vulnerable: false
             crack_args: "--kid-path /dev/null"
           - challenge: "jwt-kid-sql-injection"
+            vulnerable: true
+            crack_args: "--kid-sql-table keys"
+          - challenge: "jwt-kid-sql-injection"
+            vulnerable: false
             crack_args: "--kid-sql-table keys"
           - challenge: "jwt-not-verified"
+            vulnerable: true
+          - challenge: "jwt-not-verified"
+            vulnerable: false
           - challenge: "jwt-null-signature"
+            vulnerable: true
+          - challenge: "jwt-null-signature"
+            vulnerable: false
           - challenge: "jwt-psychic-signature"
+            vulnerable: true
+          - challenge: "jwt-psychic-signature"
+            vulnerable: false
+          - challenge: "jwt-timestamp-tampering"
+            vulnerable: true
+            crack_args: "--secret s3cr3t-dev-key"
+          - challenge: "jwt-timestamp-tampering"
+            vulnerable: false
+            crack_args: "--secret s3cr3t-dev-key"
           - challenge: "jwt-weak-hmac-secret"
+            vulnerable: true
+          - challenge: "jwt-weak-hmac-secret"
+            vulnerable: false
+          - challenge: "jwt-x5c-x5u-header-injection"
+            vulnerable: true
+          - challenge: "jwt-x5c-x5u-header-injection"
+            vulnerable: false
 
     steps:
       - uses: actions/checkout@v7
@@ -138,26 +254,45 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Server
-        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest serve --vulnerable=${{ matrix.vulnerable }}
 
       - name: Get JWT
         id: get-jwt
-        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest jwt)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/${{ matrix.challenge }}:latest jwt --vulnerable=${{ matrix.vulnerable }})" >> $GITHUB_OUTPUT
 
-      - name: Setup Go environment
-        uses: actions/setup-go@v7
+      - name: Download binary
+        uses: actions/download-artifact@v8
         with:
-          go-version: ${{ env.GO_VERSION }}
+          name: jwtop
+
+      - name: Prepare binary
+        run: chmod +x jwtop
 
       - name: jwtop crack
-        id: crack
         continue-on-error: true
         run: |
-          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --sqa-opt-out
+          ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 ${{ matrix.crack_args }} --format json --sqa-opt-out | tee crack-report.json
 
-      - name: Check for working exploit
-        if: ${{ steps.crack.outputs.conclusion == 'failure' }}
-        run: echo "No working exploit found for ${{ matrix.challenge }}"
+      - name: Check crack result
+        run: |
+          if [ "${{ matrix.challenge }}" = "jwt-weak-hmac-secret" ]; then
+            relevant=$(jq '[.findings[]] | length' crack-report.json)
+          else
+            relevant=$(jq '[.findings[] | select(.id != "Weak Secret")] | length' crack-report.json)
+          fi
+
+          if [ "${{ matrix.vulnerable }}" = "true" ]; then
+            if [ "$relevant" -eq 0 ]; then
+              echo "No working exploit found for ${{ matrix.challenge }} (vulnerable mode)"
+            fi
+          else
+            if [ "$relevant" -gt 0 ]; then
+              echo "::error::Exploit unexpectedly found for ${{ matrix.challenge }} in fixed (non-vulnerable) mode"
+              jq '.findings[] | .id' crack-report.json
+              exit 1
+            fi
+            echo "No exploit found for ${{ matrix.challenge }} (fixed mode, as expected)"
+          fi
 
       - name: Stop Server
         if: ${{ always() }}
@@ -166,6 +301,7 @@ jobs:
   run-jwt-crack-external-tools:
     name: JWT Crack - External Tools (john/hashcat)
     runs-on: ubuntu-latest
+    needs: build
 
     steps:
       - uses: actions/checkout@v7
@@ -199,19 +335,33 @@ jobs:
       - name: Run external-tool integration tests
         run: go test -tags=integration ./jwt/exploit/external/...
 
+      - name: Download binary
+        uses: actions/download-artifact@v8
+        with:
+          name: jwtop
+
+      - name: Prepare binary
+        run: chmod +x jwtop
+
       - name: Create weak-secret token
         id: create-weak
-        run: echo "jwt=$(go run main.go create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(./jwtop create --alg HS256 --secret testsecret --sqa-opt-out)" >> $GITHUB_OUTPUT
 
       - name: Offline crack via john
-        run: go run main.go crack ${{ steps.create-weak.outputs.jwt }} --john --sqa-opt-out
+        run: ./jwtop crack ${{ steps.create-weak.outputs.jwt }} --john --sqa-opt-out
 
       - name: Offline crack via hashcat
-        run: go run main.go crack ${{ steps.create-weak.outputs.jwt }} --hashcat --sqa-opt-out
+        run: ./jwtop crack ${{ steps.create-weak.outputs.jwt }} --hashcat --sqa-opt-out
 
   run-jwt-hmac-confusion-scan:
-    name: JWT Crack - jwt-hmac-confusion
+    name: JWT Crack - jwt-hmac-confusion (${{ matrix.vulnerable && 'vulnerable' || 'not vulnerable' }})
     runs-on: ubuntu-latest
+    needs: build
+
+    strategy:
+      fail-fast: false
+      matrix:
+        vulnerable: [true, false]
 
     steps:
       - uses: actions/checkout@v7
@@ -224,26 +374,39 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Run Server
-        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest
+        run: docker run -d -p 8080:8080 ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest serve --vulnerable=${{ matrix.vulnerable }}
 
       - name: Get JWT
         id: get-jwt
-        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest jwt)" >> $GITHUB_OUTPUT
+        run: echo "jwt=$(docker run --rm ghcr.io/cerberauth/api-vulns-challenges/jwt-hmac-confusion:latest jwt --vulnerable=${{ matrix.vulnerable }})" >> $GITHUB_OUTPUT
 
-      - name: Setup Go environment
-        uses: actions/setup-go@v7
+      - name: Download binary
+        uses: actions/download-artifact@v8
         with:
-          go-version: ${{ env.GO_VERSION }}
+          name: jwtop
+
+      - name: Prepare binary
+        run: chmod +x jwtop
 
       - name: jwtop crack
         id: crack
         continue-on-error: true
         run: |
-          go run main.go crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --key http://localhost:8080/public-key --sqa-opt-out
+          ./jwtop crack ${{ steps.get-jwt.outputs.jwt }} --url http://localhost:8080 --key http://localhost:8080/public-key --sqa-opt-out
 
-      - name: Check for working exploit
-        if: ${{ steps.crack.outputs.conclusion == 'failure' }}
-        run: echo "No working exploit found for jwt-hmac-confusion"
+      - name: Check crack result
+        run: |
+          if [ "${{ matrix.vulnerable }}" = "true" ]; then
+            if [ "${{ steps.crack.outcome }}" = "failure" ]; then
+              echo "No working exploit found for jwt-hmac-confusion (vulnerable mode)"
+            fi
+          else
+            if [ "${{ steps.crack.outcome }}" = "success" ]; then
+              echo "::error::Exploit unexpectedly found for jwt-hmac-confusion in fixed (non-vulnerable) mode"
+              exit 1
+            fi
+            echo "No exploit found for jwt-hmac-confusion (fixed mode, as expected)"
+          fi
 
       - name: Stop Server
         if: ${{ always() }}

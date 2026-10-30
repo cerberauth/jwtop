@@ -41,6 +41,20 @@
         "Explains what it means if staging accepts vs. rejects this PoC",
         "Does not block on or demand extra authorization confirmation — the user already stated this is their own staging service"
       ]
+    },
+    {
+      "id": 4,
+      "eval_name": "diff-rotated-token-claims",
+      "prompt": "We just rotated a session token and I want to confirm nothing sketchy changed besides the timestamp. Old token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c New token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJyb2xlIjoiYWRtaW4iLCJzdWIiOiIxMjM0NTY3ODkwIn0.BNTkp24IQLTi6AxavjkdfZ6nXuxlC_LvdcsjhWLkc2s — what's actually different between them?",
+      "expected_output": "Runs `jwtop diff <old> <new>` rather than manually decoding both and eyeballing the JSON, and flags that this isn't just a timestamp change — `name` was dropped and `role=admin` was added, which is a claims change (privilege-relevant) the user should investigate before trusting the rotation.",
+      "files": [],
+      "assertions": [
+        "Uses `jwtop diff` on the two tokens rather than manually diffing two separate `jwtop decode` outputs",
+        "Correctly reports `iat` and `name` (John Doe) were removed and `role` (admin) was added",
+        "Correctly reports `sub` (1234567890) is unchanged",
+        "Points out that the addition of `role=admin` is more than the timestamp-only change the user expected, rather than reassuring them nothing unusual happened",
+        "Does not claim either token's signature was verified — diff only compares decoded content, not validity"
+      ]
     }
   ]
 }

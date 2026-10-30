@@ -1,0 +1,101 @@
+---
+title: Confusion HMAC JWT
+description: La confusion HMAC (aussi appelée confusion d'algorithme) est une vulnérabilité JWT critique où un attaquant piège un serveur pour qu'il vérifie un token asymétrique (comme RS256) avec un algorithme symétrique (comme HS256).
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>CVE</th>
+    <td>
+      <ul>
+        <li><a href="https://www.cve.org/CVERecord?id=CVE-2016-10555">CVE-2016-10555</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/327.html">CWE-327: Use of a Broken or Risky Cryptographic Algorithm</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/475.html">CAPEC-475: Signature Spoofing by Improper Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+La confusion HMAC (aussi appelée confusion d'algorithme) exploite les serveurs qui font confiance au champ `alg` (algorithme) de l'en-tête JWT sans imposer un algorithme précis attendu.
+
+L'attaque se déroule ainsi :
+1. Le serveur est configuré pour utiliser un algorithme asymétrique (ex. **RS256**) et possède une **clé publique** pour la vérification.
+2. Un attaquant change l'en-tête `alg` de `RS256` à `HS256` (un algorithme HMAC symétrique).
+3. L'attaquant signe le token forgé en utilisant la **clé publique** du serveur comme secret HMAC.
+4. Si la logique de vérification du serveur est vulnérable, elle voit `HS256`, cherche un « secret », et utilise par erreur la clé publique RSA dont elle dispose. Comme l'attaquant a utilisé cette même clé publique pour signer le token, la signature est validée.
+
+## Exemple
+
+Correspondance des algorithmes (même force en bits) :
+- RS256 / ES256 / PS256 → HS256
+- RS384 / ES384 / PS384 → HS384
+- RS512 / ES512 / PS512 → HS512
+
+### La confusion
+
+L'attaquant prend un token RS256 :
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT"
+}
+```
+
+Le transforme en HS256 :
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT"
+}
+```
+
+Et le signe en utilisant la clé publique RSA comme secret HMAC.
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT HMAC Confusion », vous pouvez utiliser la commande `crack` :
+
+```bash
+jwtop crack [token] --url [url] --key [public_key_path]
+```
+
+Pour générer un token confus, utilisez la commande `exploit hmacconfusion` :
+
+```bash
+jwtop exploit hmacconfusion [token] --key [public_key_path]
+```
+
+## Quel est l'impact ?
+
+Une attaque par confusion HMAC réussie permet à un attaquant de forger des JWT arbitraires, menant à un contournement total de l'authentification et à un accès non autorisé à n'importe quel compte utilisateur ou fonctionnalité du système.
+
+## Comment corriger ?
+
+- **Épinglage de l'algorithme** : configurez explicitement votre bibliothèque JWT pour n'accepter *que* l'algorithme prévu (ex. `RS256` uniquement).
+- **Validation du type de clé** : assurez-vous que la clé utilisée correspond à l'algorithme (ex. n'autorisez pas une clé publique à être utilisée pour une opération HMAC).
+- **Chemins de vérification séparés** : n'utilisez pas une unique fonction générique de « vérification » qui détermine l'algorithme à partir de l'en-tête du token.

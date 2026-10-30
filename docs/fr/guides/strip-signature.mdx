@@ -1,0 +1,62 @@
+---
+title: Retirer ou supprimer la signature d'un token
+description: Produisez un token non signé ou alg=none pour tester la logique de validation des signatures.
+---
+
+Certains tests de sécurité nécessitent des tokens sans signature valide — par exemple, vérifier que votre serveur rejette les tokens non signés, ou tester le comportement lorsque `alg` vaut `"none"`. `jwtop sign --alg none` couvre ce cas.
+
+## Produire un token alg=none
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+Le token résultant a son champ d'en-tête `alg` défini sur `"none"` et un segment de signature vide :
+
+```
+eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTQyIn0.
+```
+
+Aucun flag `--secret` ou `--key` n'est nécessaire.
+
+## Quand utiliser ceci
+
+**Tester que votre serveur rejette alg=none**
+
+Une bibliothèque JWT correctement configurée doit rejeter les tokens avec `alg=none`, sauf configuration explicite pour l'autoriser. Utilisez ceci pour vérifier que votre serveur fait le bon choix :
+
+```sh
+UNSIGNED=$(jwtop sign $TOKEN --alg none)
+
+# Attendu : un 401
+curl -si -H "Authorization: Bearer $UNSIGNED" https://api.example.com/me \
+  | head -1
+```
+
+**Vérifier la validation des claims indépendamment de la signature**
+
+Si vous voulez tester la logique d'analyse des claims (token expiré, mauvais issuer, etc.) dans un contexte où la vérification de signature est déjà désactivée dans votre harnais de test :
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+## Différence entre alg=none et une signature vide
+
+| | `--alg none` | `WithoutSignature` (bibliothèque) |
+|---|---|---|
+| Champ `alg` de l'en-tête | Changé en `"none"` | Inchangé |
+| Segment de signature | Vide | Vide |
+
+Utilisez `--alg none` depuis la CLI. La méthode `WithoutSignature` sur `editor.TokenEditor` est disponible dans la bibliothèque Go lorsque vous devez préserver l'alg de l'en-tête :
+
+```go
+import "github.com/cerberauth/jwtop/jwt/editor"
+
+te, _ := editor.NewTokenEditor(existingToken)
+noSig, err := te.WithoutSignature()
+```
+
+## Remarque de sécurité
+
+Les tokens avec `alg=none` ne doivent jamais être acceptés par un serveur de production. Cette fonctionnalité est destinée uniquement aux tests de sécurité et au développement local.

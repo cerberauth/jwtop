@@ -1,0 +1,82 @@
+---
+title: Installation
+description: Installez JWTop en tant qu'outil CLI.
+sidebar:
+  order: 2
+---
+
+import { Steps, Tabs, TabItem, Aside } from '@/components/docs';
+
+## CLI
+
+<Tabs>
+  <TabItem label="go install">
+
+```sh
+go install github.com/cerberauth/jwtop@latest
+```
+
+Nécessite Go 1.24 ou une version ultérieure.
+
+  </TabItem>
+  <TabItem label="Homebrew">
+
+```sh
+brew install cerberauth/tap/jwtop
+```
+
+  </TabItem>
+  <TabItem label="Docker">
+
+```sh
+docker run --rm ghcr.io/cerberauth/jwtop <command>
+```
+
+Consultez le [guide Docker](./docker/) pour les montages de volumes, Compose et l'utilisation en CI.
+
+  </TabItem>
+  <TabItem label="Depuis les sources">
+
+<Steps>
+
+1. Clonez le dépôt :
+
+   ```sh
+   git clone https://github.com/cerberauth/jwtop.git
+   cd jwtop
+   ```
+
+2. Compilez le binaire :
+
+   ```sh
+   go build -o jwtop .
+   ```
+
+3. Déplacez-le dans votre `PATH` :
+
+   ```sh
+   mv jwtop /usr/local/bin/
+   ```
+
+</Steps>
+
+  </TabItem>
+</Tabs>
+
+Vérifiez l'installation :
+
+```sh
+jwtop version
+```
+
+## Optionnel : outils de cracking externes
+
+`jwtop crack`/`jwtop exploit weaksecret` peuvent optionnellement s'appuyer sur les outils externes `john` et `hashcat` pour le cracking de secrets HMAC sur de grandes wordlists. Aucun des deux n'est une dépendance de jwtop ; installez-les uniquement si vous prévoyez d'utiliser `--john`/`--hashcat`. Voir [crack &raquo; Outils de cracking externes](./reference/cli/crack/#external-cracking-tools) pour les commandes d'installation et les mises en garde importantes (le paquet `john` de Debian/Ubuntu ne contient pas les formats requis ; `hashcat` nécessite un backend de calcul).
+
+## GitHub Actions
+
+Pour utiliser `jwtop` dans un workflow GitHub Actions, consultez le [guide GitHub Actions](./github-actions/).
+
+<Aside type="tip">
+  L'action composite [`cerberauth/jwtop-action`](https://github.com/cerberauth/jwtop-action) installe et exécute `jwtop` sans configuration supplémentaire.
+</Aside>

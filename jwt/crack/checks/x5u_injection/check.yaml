@@ -1,0 +1,14 @@
+id: "x5uinjection"
+name: "X5U Header Injection"
+description: "Tests if the server fetches the token's x5u header URL and trusts whatever certificate it returns, instead of validating it against a pinned CA or certificate store."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-x5u-injection"
+tags:
+  - injection
+  - asymmetric
+depends_on:
+  - baseline
+cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
+cvss_score: 9.3
+cwe_id: "CWE-295"
+capec_id: "CAPEC-194"
+owasp: "API2:2023"

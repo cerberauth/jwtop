@@ -1,0 +1,47 @@
+---
+title: sign
+description: Re-signe un JWT existant avec un autre algorithme ou une autre clé.
+---
+
+Analyse un JWT existant et le re-signe avec un nouvel algorithme et/ou une nouvelle clé. Les claims d'origine sont préservés. Utilisez `--alg none` pour supprimer complètement la signature.
+
+## Utilisation
+
+```sh
+jwtop sign <token> --alg <alg> (--secret <secret> | --key <pem-file>)
+```
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--alg` | Algorithme de signature cible, ou `none` **(obligatoire)** |
+| `--secret` | Secret HMAC |
+| `--key` | Chemin ou URL vers un fichier de clé privée au format PEM |
+
+## Exemples
+
+**Changer la clé de signature (même algorithme)**
+
+```sh
+jwtop sign $TOKEN --alg HS256 --secret newsecret
+```
+
+**Passer à un algorithme asymétrique**
+
+```sh
+jwtop sign $TOKEN --alg RS256 --key /path/to/private.pem
+```
+
+**Supprimer la signature (alg=none)**
+
+```sh
+jwtop sign $TOKEN --alg none
+```
+
+## Notes
+
+- Lorsque `<token>` est omis, il est lu depuis stdin — ex. `jwtop find --file page.html | jwtop sign --alg HS256 --secret newsecret`.
+- Les claims du token d'entrée et leurs valeurs sont conservés à l'identique.
+- `--alg none` ne nécessite aucune clé. Le token résultant a un segment de signature vide et son en-tête `alg` est défini à `"none"`.
+- Voir [Supprimer la signature d'un token](../../guides/strip-signature) pour le contexte d'utilisation.

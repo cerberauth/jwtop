@@ -22,15 +22,28 @@ var (
 var verifyOtelName = "github.com/cerberauth/jwtop/cmd/verify"
 
 var verifyCmd = &cobra.Command{
-	Use:   "verify <token>",
+	Use:   "verify [token]",
 	Short: "Verify a JWT signature and print its claims",
-	Args:  cobra.ExactArgs(1),
+	Long: `Verify a JWT signature and print its claims.
+
+The token can be supplied as a positional argument or piped via stdin:
+
+  jwtop verify <token> --secret mysecret
+  echo <token> | jwtop verify --secret mysecret
+  jwtop find --file page.html | jwtop verify --jwks https://example.com/.well-known/jwks.json`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		telemetryMeter := telemetryx.GetMeterProvider().Meter(verifyOtelName)
 		verifySuccessCounter, _ := telemetryMeter.Int64Counter("verify.success.counter")
 		verifyErrorCounter, _ := telemetryMeter.Int64Counter("verify.error.counter")
 
 		ctx := cmd.Context()
+
+		tokenString, err := readTokenArg(args)
+		if err != nil {
+			verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
+			return err
+		}
 
 		opts := jwt.VerifyOptions{
 			JWKSURI: verifyJWKSURI,
@@ -49,7 +62,7 @@ var verifyCmd = &cobra.Command{
 			opts.KeyPEM = pemData
 		}
 
-		result, err := jwt.Verify(args[0], opts)
+		result, err := jwt.Verify(tokenString, opts)
 		if err != nil {
 			verifyErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "verification error")))
 			return fmt.Errorf("verification error: %w", err)

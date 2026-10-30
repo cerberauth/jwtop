@@ -1,0 +1,87 @@
+---
+title: JWT Claim Fuzzing
+description: A vulnerability where a server crashes, leaks a stack trace, or otherwise behaves erratically when a JWT claim contains an unexpected type, an oversized string, special characters, or a null value.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>Medium</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/20.html">CWE-20: Improper Input Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Attack Pattern</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/28.html">CAPEC-28: Fuzzing</a>
+    </td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa8-security-misconfiguration/">OWASP API8:2023 Security Misconfiguration</a>
+    </td>
+  </tr>
+</table>
+
+APIs that decode JWT claims into typed fields (structs, ORMs, template variables, SQL parameters, ...) don't always validate a claim's type or length before using it. If a claim that's normally a short string arrives as a number, an array, an oversized string, or `null`, the server may throw an unhandled exception, leak a stack trace, or respond very differently in size — all signs the claim was consumed without validation, and a starting point for further exploitation (denial of service, information disclosure, or worse if the value reaches a template engine, SQL query, or shell).
+
+This is distinct from the other JWT vulnerabilities documented here: it isn't a single crafted exploit but a fuzzing pass — every claim is mutated with a battery of edge-case values and each response is compared against a reference response to spot anomalies.
+
+## Example
+
+JWTop mutates each claim value in turn, keeping every other claim and the header untouched, and drops the signature (since it no longer matches the mutated payload):
+
+**Original claim**: `"sub": "user123"`
+
+**Type confusion**: `"sub": ["user123"]`, `"sub": 1337`, `"sub": {"a":"b"}`, `"sub": true`
+
+**Oversized string**: `"sub": "AAAA...` (10,000 characters by default)
+
+**Special characters**: `"sub": "' OR '1'='1"`, `"sub": "<script>alert(1)</script>"`, `"sub": "../../../../etc/passwd"`, `"sub": "${7*7}{{7*7}}"`, ...
+
+**Null value**: `"sub": null`
+
+Each mutated token is sent to the target and the response is compared against the reference response captured from the original, unmutated token. A mutation is flagged when:
+
+- the response status is `5xx`
+- the response body matches a known stack-trace/unhandled-exception signature (e.g. `Traceback (most recent call last)`, `panic: ... goroutine`, `NullPointerException`, `Whitelabel Error Page`, ...)
+- the response body length differs from the reference by more than 50%
+
+## How to test?
+
+`fuzz` is off by default — enable it with `--fuzz` alongside the fixed check set:
+
+```bash
+jwtop crack [token] --url [url] --fuzz
+```
+
+Use `--fuzz-max-string-len` to change the oversized-string payload length (default `10000`):
+
+```bash
+jwtop crack [token] --url [url] --fuzz --fuzz-max-string-len 100000
+```
+
+## What is the impact?
+
+- **Denial of service**: an unhandled exception on every request carrying a malformed claim can crash a worker process or exhaust resources on an oversized value.
+- **Information disclosure**: a leaked stack trace can reveal internal file paths, framework/library versions, database schema, or other details useful for further attacks.
+- **Downstream injection**: if a claim value reaches a SQL query, shell command, or template engine without sanitization, the special-character payloads used here are a starting point for SQL injection, command injection, or server-side template injection.
+
+## How to remediate?
+
+1. **Validate claim types and lengths** after decoding, before using them — don't assume a claim you expect to be a short string actually is one.
+
+2. **Use a schema or typed struct** to decode claims (many JWT libraries support this) so an unexpected type fails decoding cleanly instead of propagating into application logic.
+
+3. **Return generic error responses** for malformed input — never let a stack trace or exception message reach the client.
+
+4. **Bound claim sizes** at the API gateway or middleware layer (e.g. reject requests where the token or an individual claim exceeds a sane length) before they reach application code.
+
+5. **Sanitize/parameterize** any claim value used in a SQL query, shell command, template, or log line, the same as any other untrusted user input.

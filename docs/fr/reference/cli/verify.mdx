@@ -1,0 +1,52 @@
+---
+title: verify
+description: Vérifie la signature d'un JWT et valide ses claims standard.
+---
+
+import { Aside } from '@/components/docs';
+
+Vérifie la signature d'un JWT et valide les claims standard (`exp`, `nbf`, `iss`, etc.). Retourne le code `1` si le token est invalide ou si la signature ne correspond pas.
+
+## Utilisation
+
+```sh
+jwtop verify <token> [--secret <secret>] [--key <pem-file>] [--jwks <uri>]
+```
+
+Exactement une source de clé doit être fournie. Lorsque `<token>` est omis, le token est lu depuis stdin — ex. `jwtop find --file page.html | jwtop verify --secret mysecret`.
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--secret` | Secret HMAC (pour HS256, HS384, HS512) |
+| `--key` | Chemin ou URL vers un fichier de clé publique ou privée au format PEM (RSA, EC, Ed25519) |
+| `--jwks` | URL d'un endpoint JWKS |
+
+## Exemples
+
+**Secret HMAC**
+
+```sh
+jwtop verify $TOKEN --secret mysecret
+```
+
+**Fichier de clé publique RSA ou EC**
+
+```sh
+jwtop verify $TOKEN --key /path/to/public.pem
+jwtop verify $TOKEN --key https://example.com/public.pem
+```
+
+**Endpoint JWKS**
+
+```sh
+jwtop verify $TOKEN --jwks https://example.com/.well-known/jwks.json
+```
+
+## Codes de sortie
+
+| Code | Signification |
+|---|---|
+| `0` | Le token est valide |
+| `1` | Token invalide, signature incorrecte, ou erreur structurelle |

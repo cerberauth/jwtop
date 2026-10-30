@@ -28,9 +28,9 @@ func TestCheck_Run_Offline_PopulatesProbeCtx(t *testing.T) {
 	result, err := baseline.Check.Run(context.Background(), target, store)
 	assert.NoError(t, err)
 
-	status, ok := harnessx.DataAs[int](result)
+	snap, ok := harnessx.DataAs[harnessx.Snapshot](result)
 	assert.True(t, ok)
-	assert.Equal(t, 0, status)
+	assert.Equal(t, 0, snap.StatusCode)
 
 	assert.Equal(t, "HS256", pctx.Alg)
 	assert.True(t, pctx.IsHMAC)

@@ -1,0 +1,95 @@
+---
+title: Injection d'en-tête X5U JWT
+description: La vulnérabilité d'injection d'en-tête X5U survient lorsqu'un serveur récupère l'URL de l'en-tête `x5u` du token et fait confiance au certificat renvoyé, au lieu de le valider avec une AC épinglée ou un magasin de certificats, permettant aux attaquants de forger des tokens vérifiés avec leur propre certificat hébergé.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/295.html">CWE-295: Improper Certificate Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/194.html">CAPEC-194: Fake the Source of Data</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Le champ d'en-tête JWT `x5u` (RFC 7515 §4.1.5) indique au vérificateur où récupérer le certificat X.509 (ou la chaîne de certificats) correspondant à la clé utilisée pour signer le token. Il existe pour qu'un vérificateur puisse résoudre dynamiquement le certificat d'un signataire via une URL au lieu de le stocker à l'avance. Les serveurs qui déréférencent `x5u` et utilisent la clé publique du certificat récupéré pour vérifier la signature — sans valider la chaîne de certificats jusqu'à une racine de confiance épinglée, et sans restreindre `x5u` à un ensemble connu d'hôtes — récupéreront et feront confiance à un certificat provenant de *n'importe quelle* URL fournie par un attaquant, y compris une URL que l'attaquant contrôle.
+
+Un attaquant qui exploite cette faille de confiance génère sa propre paire de clés et un certificat auto-signé jetable, héberge le certificat sur une URL qu'il contrôle, fait pointer l'en-tête `x5u` du token vers cette URL, puis signe le token avec la clé privée correspondante. Comme le serveur récupère et utilise le certificat fourni par l'attaquant pour vérifier la signature fournie par l'attaquant, la vérification réussit toujours — pour n'importe quels claims choisis par l'attaquant.
+
+C'est la même classe de défaillance de confiance que l'[injection d'en-tête JKU](/docs/jwtop/vulnerabilities/jwt-jku-injection) — la différence porte sur ce qui est récupéré : un document JWKS contre un certificat X.509. C'est aussi étroitement lié à l'[injection d'en-tête X5C](/docs/jwtop/vulnerabilities/jwt-x5c-injection), qui embarque le certificat directement dans le token au lieu de le récupérer depuis une URL.
+
+## Exemple
+
+L'attaquant génère une nouvelle paire de clés RSA, héberge un certificat auto-signé sur une URL qu'il contrôle, définit `x5u` (et `kid` pour correspondre), puis re-signe avec la clé privée :
+
+```json
+{
+  "alg": "RS256",
+  "typ": "JWT",
+  "kid": "x5u-injection",
+  "x5u": "https://attacker.example/cert.pem"
+}
+```
+
+Un serveur vulnérable récupère `https://attacker.example/cert.pem`, en extrait la clé publique, vérifie la signature avec elle (ce qui réussit — l'attaquant a signé avec la clé privée correspondante), et considère le token comme authentique. Restreindre `x5u` à `https` ou exiger qu'il corresponde à l'hôte émetteur du token ne suffit pas si l'attaquant peut héberger du contenu sur un domaine autorisé (par exemple via une redirection ouverte, un CDN partagé, ou une prise de contrôle de sous-domaine).
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT X5U Header Injection », utilisez la commande `crack` avec `--x5u-server-addr` défini sur une adresse d'écoute joignable par la cible — jwtop démarre un serveur de certificat local jetable, fait pointer l'en-tête `x5u` du token forgé vers celui-ci, et sonde la cible :
+
+```bash
+jwtop crack [token] --url [url] --x5u-server-addr 0.0.0.0:8090
+```
+
+L'adresse d'écoute doit être joignable par le serveur testé — utilisez une interface/un port public (ou un tunnel comme `ngrok`) pour tester une cible distante plutôt qu'une adresse locale. Le contrôle est ignoré quand `--x5u-server-addr` est omis, et ne s'exécute que sur les tokens RSA/ECDSA (`RS*`/`ES*`/`PS*`) — un serveur qui fait confiance à un certificat `x5u` récupéré n'a aucune raison de le faire pour des tokens signés en HMAC.
+
+Pour générer un token autonome avec un en-tête `x5u` pointant vers une URL de certificat que vous contrôlez déjà, utilisez la commande `exploit x5uinjection` :
+
+<Tabs>
+  <TabItem label="Générer une nouvelle paire de clés">
+```bash
+jwtop exploit x5uinjection [token] --url https://attacker.example/cert.pem
+```
+  </TabItem>
+  <TabItem label="Choisir l'algorithme">
+```bash
+jwtop exploit x5uinjection [token] --alg ES256 --url https://attacker.example/cert.pem
+```
+  </TabItem>
+  <TabItem label="Re-signer avec une clé existante">
+```bash
+jwtop exploit x5uinjection [token] --key /path/to/private.pem --url https://attacker.example/cert.pem
+```
+  </TabItem>
+</Tabs>
+
+`exploit x5uinjection` se contente de définir l'en-tête et de signer le token — il n'héberge pas lui-même le certificat, puisque `--url` peut pointer vers une infrastructure que vous contrôlez déjà. C'est le drapeau `--x5u-server-addr` de la commande `crack` qui sert aussi le certificat.
+
+## Quel est l'impact ?
+
+Une attaque par injection X5U réussie permet à un attaquant de forger un JWT que le serveur accepte comme légitime, sans aucune connaissance de la clé de signature réelle du serveur. Cela peut mener à un contournement complet de l'authentification, une élévation de privilèges, ou l'usurpation de n'importe quel utilisateur du système. Cela peut aussi servir de primitive de Server-Side Request Forgery (SSRF), puisque le serveur effectue une requête HTTP sortante vers une URL choisie par l'attaquant.
+
+## Comment corriger ?
+
+- **Ne résolvez jamais la clé de vérification depuis le token lui-même.** Ignorez les champs d'en-tête `x5u` (ainsi que `jwk`, `jku`, `x5c`) lors de la vérification — recherchez la clé côté serveur via `kid` dans un jeu de clés ou un magasin de certificats épinglé.
+- **Si le support de `x5u` est incontournable**, restreignez-le à une liste blanche stricte d'URLs de certificats de confiance et entièrement qualifiées — jamais une simple correspondance sur le suffixe de domaine — et ne suivez jamais les redirections lors de la récupération. Validez la chaîne du certificat récupéré jusqu'à une AC racine de confiance épinglée.
+- **Épinglez l'algorithme et la ou les clés attendus par émetteur** afin qu'un token ne puisse pas dicter quelle clé ou quelle famille d'algorithme le vérifie.
+- **Traitez la récupération `x5u` comme une requête sortante vers une destination non fiable** : bloquez les plages d'IP internes/privées pour empêcher son utilisation comme vecteur SSRF contre des services internes.

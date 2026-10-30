@@ -1,0 +1,227 @@
+---
+title: crack
+description: Analyse a JWT for vulnerabilities — offline cryptographic checks or live server probing.
+---
+
+import { Aside } from '@/components/docs';
+
+Analyse a JWT token for known vulnerabilities. Without `--url` the tool runs in **offline mode** and performs pure cryptographic checks with no network requests. With `--url` each exploit technique probes the live server and reports whether it is accepted.
+
+<Aside type="caution">
+  Use only against systems you own or have explicit written permission to test.
+</Aside>
+
+## Usage
+
+```sh
+# Offline — no URL required
+jwtop crack <token> [flags]
+
+# Online — probe a live server
+jwtop crack <token> --url <url> [flags]
+
+# Token from stdin
+echo <token> | jwtop crack --url <url>
+```
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--url` | Target URL to probe (omit for offline analysis) |
+| `--expected-status` | HTTP status code that indicates a successful exploit (default `200`) |
+| `--key` | Path or URL to a PEM public key file for the `hmacconfusion` probe |
+| `--wordlist` | Path to a newline-delimited file of candidate secrets |
+| `--secret` | Explicit candidate secret for brute-force (repeatable) |
+| `--workers` | Number of concurrent workers for secret brute-force (default `8`) |
+| `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
+| `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
+| `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
+| `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
+| `--john` | Fall back to the external `john` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--john-path` | Path to the `john` binary — passing this implies `--john`; resolved via `PATH` when omitted |
+| `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
+| `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`; resolved via `PATH` when omitted |
+| `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+| `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
+| `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
+
+## External cracking tools
+
+`--john`/`--hashcat` are optional and off by default — the built-in dictionary attack (a pure-Go, in-process brute force) always runs first. If it doesn't find the secret and one of these flags is set, jwtop shells out to the corresponding tool with the same candidate list.
+
+- **Auto-detection**: on every invocation, jwtop checks whether `john`/`hashcat` are on `PATH`. If a tool is found but not enabled (neither its bool flag nor its `-path` flag was passed), a one-line advisory is printed to stderr, e.g. `[i] hashcat detected on PATH — pass --hashcat (or --hashcat-path) to use it as a fallback for faster HMAC secret cracking`.
+- **Timeouts**: if a tool doesn't finish within `--crack-timeout` (default `5m`), it's stopped and jwtop prints an explicit warning — `[!] john timed out after 5m0s without finding the secret — try a larger --crack-timeout or a smaller wordlist` — rather than silently reporting "not found".
+- **Telemetry**: usage of each tool (success/not-found/error) and detection events are reported the same way as every other check, plus a span per invocation recording exit code, tool version, format/mode, candidate count, and (for hashcat) a summary of the compute backend — never the token or the cracked secret.
+- **Docker**: the published image is `distroless` (no shell, no package manager) — `--john`/`--hashcat` cannot work inside it. Run jwtop on the host, or build a custom image with these tools installed.
+- **Installing the tools** (Debian/Ubuntu):
+
+  ```sh
+  # hashcat + a CPU OpenCL runtime (hashcat errors "No devices found" on
+  # machines without a GPU/vendor OpenCL driver otherwise)
+  sudo apt update
+  sudo apt install hashcat pocl-opencl-icd
+  hashcat -I   # confirm a usable device is listed
+
+  # john the ripper — `apt install john` alone is NOT enough: that's John
+  # "core" 1.8.0, which lacks the HMAC-SHA256/384/512 formats this feature
+  # needs. Install the community "jumbo" build via snap instead:
+  sudo snap install john-the-ripper
+  john --list=formats | grep -i hmac   # confirm HMAC formats are present
+  ```
+
+  The snap package installs under strict confinement (only the `home` and `removable-media` plugs are granted — no `/tmp` access), so jwtop keeps john's temporary working files under `$HOME` rather than the system temp directory to stay compatible with it.
+
+## Offline mode
+
+When `--url` is omitted, checks are limited to what can be determined from the token itself — no network calls are made.
+
+| Check | What is detected |
+|---|---|
+| `algnone` | Token already uses `alg=none` (any capitalisation) |
+| `blanksecret` | Token signature verifies against an empty HMAC secret |
+| `nullsig` | Token has an empty signature segment |
+| `weaksecret` | HMAC signing secret found via dictionary brute-force |
+
+Checks that require a live server (`hmacconfusion`, `psychicsig`, `kidinjection`, `jwkinjection`, `no_verification`, and `algnone` casing variants) are skipped with an explanatory message.
+
+## Online mode
+
+When `--url` is provided, a modified token is sent as `Authorization: Bearer <token>` for each technique. A technique is **VULNERABLE** when the server responds with a status code that differs from the baseline (the status returned for a deliberately invalid JWT).
+
+`--expected-status` sets the baseline manually. When omitted, a first request with an invalid token auto-detects it.
+
+### Placing the JWT elsewhere
+
+Authorization: Bearer is only the default. If the target reads the JWT from a cookie, a query parameter, or a form-encoded body instead, use `--token-in`, `--token-name`, and `--token-prefix` to match — every probe request (including baseline auto-detection) follows the same placement.
+
+```sh
+# Cookie
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in cookie --token-name session
+
+# Query parameter
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in query --token-name access_token
+
+# Form-encoded POST body
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --token-name jwt
+
+# Custom header
+jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
+```
+
+`--token-in body` sends the probe as a POST request; every other location keeps the default GET.
+
+| Technique | Description |
+|---|---|
+| `algnone` (×4) | `alg=none` with four common capitalisation variants |
+| `blanksecret` | Re-sign with an empty HMAC secret |
+| `nullsig` | Strip the signature segment entirely |
+| `hmacconfusion` | Re-sign using a public key as HMAC secret (skipped without `--key`) |
+| `psychicsig` | Re-sign ECDSA tokens with an all-zero (r=0, s=0) signature — CVE-2022-21449 (skipped for non-ECDSA algorithms) |
+| `kidinjection (sql)` | SQL injection via the `kid` header |
+| `kidinjection (path)` | Path traversal via the `kid` header |
+| `jwkinjection` | Self-signed JWK embedded in the header and trusted by the server — CVE-2018-0114 (skipped for non-asymmetric algorithms) |
+| `weaksecret` | Dictionary brute-force of the HMAC signing secret |
+| `timestamptampering` | Re-sign with `exp` pushed into the past using the cracked HMAC secret — tests whether claims validation (`exp`/`nbf`/`iat`) is enforced at all (skipped unless `weaksecret` recovers the secret) |
+| `fuzz` | Claim-mutation fuzzing — opt-in via `--fuzz`, skipped otherwise |
+
+### Claim-mutation fuzzing (`--fuzz`)
+
+`--fuzz` complements the fixed techniques above with a fuzzing pass: every claim is mutated in turn (type confusion, an oversized string, special characters, an explicit null) and each mutated response is compared against a reference response captured from the original, unmutated token — not the invalid-token baseline used by the other checks. A mutation is flagged when the response diverges:
+
+- a `5xx` status code
+- the body matches a known stack-trace/unhandled-exception signature
+- the body length differs from the reference by more than 50%
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz --fuzz-max-string-len 100000
+```
+
+See [JWT Claim Fuzzing](/vulnerabilities/jwt-claim-fuzzing/) for details.
+
+## Output format
+
+```
+# Offline
+[+] Blank Secret                  CONFIRMED
+[ ] Algorithm None (none)         OK
+[-] HMAC Confusion                skipped (requires live server)
+
+# Online
+[+] algnone (none)              200  VULNERABLE
+[ ] blanksecret                 401
+[-] hmacconfusion               skipped (no public key provided)
+[+] weaksecret                  200  VULNERABLE  (secret: hunter2)
+```
+
+- `[+]` — vulnerability confirmed (offline) or server accepted the exploit (online)
+- `[ ]` — not vulnerable
+- `[-]` — technique was skipped (prerequisite missing or offline)
+- `[!]` — a network or token error occurred
+
+## Examples
+
+**Offline — detect cryptographic weaknesses**
+
+```sh
+jwtop crack $TOKEN
+```
+
+**Offline — crack the signing secret with a wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt
+jwtop crack $TOKEN --wordlist /path/to/secrets.txt --secret mysecret --secret topsecret
+```
+
+**Offline — fall back to hashcat on a large wordlist**
+
+```sh
+jwtop crack $TOKEN --wordlist /path/to/rockyou.txt --hashcat --crack-timeout 30m
+```
+
+**Online — probe with the built-in secret dictionary**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected
+```
+
+**Online — include a public key for the hmacconfusion probe**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key /path/to/public.pem
+
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --key https://example.com/public.pem
+```
+
+**Online — use a custom wordlist and explicit guesses**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --wordlist /path/to/secrets.txt \
+  --secret mysecret --secret topsecret
+```
+
+**Online — expect a different success status (e.g. 403 means authenticated but unauthorised)**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected \
+  --expected-status 403
+```
+
+**Online — add claim-mutation fuzzing to the fixed check set**
+
+```sh
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
+```
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | At least one vulnerability found |
+| `1` | No vulnerabilities found |

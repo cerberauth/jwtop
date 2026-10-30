@@ -1,0 +1,154 @@
+---
+title: Injection d'en-tête JWT KID
+description: L'injection d'en-tête JWT KID survient lorsque le paramètre d'en-tête `kid` (Key ID) est transmis sans désinfection à une requête de base de données ou une recherche sur le système de fichiers, permettant aux attaquants de forger des tokens de confiance.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <a href="https://cwe.mitre.org/data/definitions/345.html">CWE-345: Insufficient Verification of Data Authenticity</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <ul>
+        <li><a href="https://capec.mitre.org/data/definitions/126.html">CAPEC-126: Path Traversal</a></li>
+        <li><a href="https://capec.mitre.org/data/definitions/66.html">CAPEC-66: SQL Injection</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Le champ d'en-tête JWT `kid` (Key ID) est censé indiquer au serveur quelle clé utiliser pour vérifier la signature. Lorsque cette valeur est transmise sans désinfection à une requête de base de données ou une recherche sur le système de fichiers, un attaquant peut injecter un payload qui force le serveur à utiliser une clé qu'il contrôle, lui permettant ainsi de forger des tokens arbitraires.
+
+JWTop teste quatre variantes de cette attaque :
+
+- **Injection SQL** — injecte un payload SQL dans `kid` (ex. `' UNION SELECT 'secret' ...`) pour que la base de données renvoie une valeur connue comme clé.
+- **Path Traversal** — définit `kid` sur un chemin du système de fichiers tel que `/dev/null` pour que le serveur lise un fichier vide comme clé, ce qui correspond à un secret HMAC vide.
+- **Injection de commande** — définit `kid` sur un payload de métacaractères shell (ex. `; id`, `$(id)`) ciblant les serveurs qui délèguent au shell en utilisant la valeur de `kid` pour localiser un fichier de clé.
+- **Injection LDAP** — définit `kid` sur un payload de métacaractères de filtre LDAP (ex. `*)(uid=*`) ciblant les serveurs qui utilisent la valeur de `kid` dans une recherche LDAP pour résoudre une clé de signature.
+
+## Exemple
+
+Voici un JWT valide signé avec HS256 :
+
+```
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiaWF0IjoxNTE2MjM5MDIyfQ.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c
+```
+
+### Variante Injection SQL
+
+L'attaquant fabrique un token avec un en-tête `kid` qui s'injecte dans la requête de recherche de clé et le re-signe avec la valeur que la requête est amenée à renvoyer (`secret`) :
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "' UNION SELECT 'secret' FROM tokens WHERE '1'='1"
+}
+```
+
+### Variante Path Traversal
+
+L'attaquant définit `kid` sur `/dev/null` et re-signe le token avec un secret HMAC vide. Si le serveur lit la clé de signature depuis le chemin indiqué par `kid`, il reçoit zéro octet :
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "/dev/null"
+}
+```
+
+### Variante Injection de commande
+
+L'attaquant définit `kid` sur un payload de métacaractères shell et re-signe le token avec un secret HMAC vide. Si le serveur délègue au shell avec la valeur de `kid` pour localiser un fichier de clé (ex. `openssl ... -in keys/$kid.pem`), la commande injectée s'exécute sur le serveur :
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "; id"
+}
+```
+
+### Variante Injection LDAP
+
+L'attaquant définit `kid` sur un payload de métacaractères de filtre LDAP et re-signe le token avec un secret HMAC vide. Si le serveur interpole la valeur de `kid` dans un filtre de recherche LDAP pour résoudre une clé de signature (ex. `(&(objectClass=key)(kid=$kid))`), le terme de filtre injecté peut faire correspondre la recherche à une entrée non prévue :
+
+```json
+{
+  "alg": "HS256",
+  "typ": "JWT",
+  "kid": "*)(uid=*))(|(uid=*"
+}
+```
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT KID Injection », vous pouvez utiliser la commande `crack` :
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+> La sonde serveur de `crack` couvre actuellement uniquement les variantes Injection SQL et Path Traversal. Injection de commande et Injection LDAP sont exploit-only — générez le token ci-dessous et testez-le manuellement contre votre serveur.
+
+Pour générer un token avec un payload d'injection `kid`, utilisez la commande `exploit kidinjection` :
+
+<Tabs>
+  <TabItem label="Injection SQL">
+```bash
+jwtop exploit kidinjection [token] --mode sql
+```
+  </TabItem>
+  <TabItem label="Path Traversal">
+```bash
+jwtop exploit kidinjection [token] --mode path
+```
+  </TabItem>
+  <TabItem label="Injection de commande">
+```bash
+jwtop exploit kidinjection [token] --mode command
+jwtop exploit kidinjection [token] --mode command --all  # essaie chaque variante de payload shell
+```
+  </TabItem>
+  <TabItem label="Injection LDAP">
+```bash
+jwtop exploit kidinjection [token] --mode ldap
+jwtop exploit kidinjection [token] --mode ldap --all  # essaie chaque variante de payload LDAP
+```
+  </TabItem>
+  <TabItem label="Payload personnalisé">
+```bash
+jwtop exploit kidinjection [token] --mode raw --kid "' OR 1=1 --" --secret "mysecret"
+```
+  </TabItem>
+</Tabs>
+
+## Quel est l'impact ?
+
+Une attaque par injection KID réussie permet à un attaquant de forger un JWT que le serveur accepte comme légitime. Cela peut mener à un contournement total de l'authentification, une élévation de privilèges, ou une usurpation d'identité de n'importe quel utilisateur du système.
+
+## Comment corriger ?
+
+- **Validez la valeur de `kid`** avant de l'utiliser — rejetez les valeurs contenant des métacaractères SQL, des séparateurs de chemin, des métacaractères shell, des métacaractères de filtre LDAP, ou des caractères hors d'une liste d'autorisation sûre (ex. alphanumérique et tirets uniquement).
+- **Utilisez des requêtes paramétrées** pour rechercher des clés par `kid` dans une base de données afin de prévenir l'injection SQL.
+- **Ne lisez jamais de matériel de clé depuis des chemins de fichier contrôlés par l'utilisateur** — stockez les clés dans un coffre-fort sécurisé et utilisez `kid` uniquement comme identifiant opaque mappé côté serveur vers une clé connue.
+- **Ne transmettez jamais `kid` à une commande shell** — si la recherche de clé nécessite un processus externe, utilisez une liste d'autorisation d'identifiants de clé et passez le chemin résolu en argument, sans jamais construire de chaîne shell à partir de `kid`.
+- **Échappez les métacaractères de filtre LDAP** dans la valeur de `kid` (ou utilisez une API de filtre LDAP paramétrée) avant qu'elle ne soit interpolée dans un filtre de recherche.
+- **Codez en dur ou mettez sur liste d'autorisation les valeurs de `kid` permises** lorsque c'est possible.

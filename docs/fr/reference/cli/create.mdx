@@ -1,0 +1,57 @@
+---
+title: create
+description: Crée et signe un nouveau JWT à partir de zéro.
+---
+
+Construit et signe un nouveau JWT avec des claims personnalisés, une expiration et l'algorithme de votre choix. Affiche le token signé sur stdout.
+
+## Utilisation
+
+```sh
+jwtop create --alg <alg> (--secret <secret> | --key <pem-file>) [options]
+```
+
+## Options
+
+| Option | Description |
+|---|---|
+| `--alg` | Algorithme de signature, ex. `HS256`, `RS256`, `ES256` **(obligatoire)** |
+| `--secret` | Secret HMAC |
+| `--key` | Chemin ou URL vers un fichier de clé privée au format PEM |
+| `--claim key=value` | Claim personnalisé (répétable) |
+| `--sub` | Claim sujet (`sub`) |
+| `--iss` | Claim émetteur (`iss`) |
+| `--aud` | Claim audience (`aud`) |
+| `--exp` | Durée d'expiration, ex. `1h`, `30m`, `24h` |
+| `--iat` | Ajoute le claim de date d'émission (`iat`) à l'heure courante |
+
+## Interprétation des valeurs de claims
+
+Les valeurs de claims passées via `--claim` ou `--sub`/`--iss`/`--aud` sont interprétées automatiquement :
+
+1. Interprétées comme `int64` si la valeur est un entier valide.
+2. Interprétées comme `bool` si la valeur est `true` ou `false`.
+3. Stockées comme chaîne de caractères sinon.
+
+## Exemples
+
+**HS256 avec des claims standard**
+
+```sh
+jwtop create --alg HS256 --secret mysecret \
+  --sub user123 --iss myapp --exp 1h --iat
+```
+
+**HS256 avec des claims personnalisés**
+
+```sh
+jwtop create --alg HS256 --secret mysecret \
+  --sub user123 --claim role=admin --claim plan=pro
+```
+
+**RS256 avec une clé privée**
+
+```sh
+jwtop create --alg RS256 --key /path/to/private.pem \
+  --sub user123 --exp 24h
+```

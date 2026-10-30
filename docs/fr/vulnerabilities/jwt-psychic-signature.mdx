@@ -1,0 +1,94 @@
+---
+title: Signature psychique JWT
+description: La vulnérabilité « Psychic Signature » (CVE-2022-21449) affecte les implémentations de vérification ECDSA qui échouent à rejeter une signature à zéro (r=0, s=0), permettant aux attaquants de forger des tokens pour n'importe quel message et n'importe quelle clé publique.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Critique</td>
+  </tr>
+  <tr>
+    <th>CVE</th>
+    <td>
+      <ul>
+        <li><a href="https://www.cve.org/CVERecord?id=CVE-2022-21449">CVE-2022-21449</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/347.html">CWE-347: Improper Verification of Cryptographic Signature</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/327.html">CWE-327: Use of a Broken or Risky Cryptographic Algorithm</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Schéma d'attaque</th>
+    <td>
+      <a href="https://capec.mitre.org/data/definitions/475.html">CAPEC-475: Signature Spoofing by Improper Validation</a>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+La vérification ECDSA vérifie une équation de la forme `r == (quelque chose impliquant r et s)`. La toute première étape de l'algorithme doit rejeter les signatures où `r` ou `s` valent zéro — sinon l'équation dégénère en `0 == 0`, ce qui est trivialement vrai pour **n'importe quel** message et **n'importe quelle** clé publique. La réécriture depuis zéro par Java de son code crypto EC (abandon du C++ natif dans le JDK 15) a omis cette vérification, si bien qu'une signature entièrement composée d'octets zéro se vérifie avec succès contre n'importe quelle clé publique ECDSA, pour n'importe quel payload.
+
+Pour les JWT signés avec `ES256`, `ES384`, ou `ES512`, cela signifie qu'un attaquant qui peut soumettre une signature arbitraire peut forger un token avec n'importe quels claims, sans jamais connaître la clé privée (ni même la clé publique), tant que le vérificateur tourne sur un JDK affecté.
+
+La vulnérabilité « Psychic Signature », référencée CVE-2022-21449 et popularisée par l'article de blog de Neil Madden [« Psychic Signatures in Java »](https://neilmadden.blog/2022/04/19/psychic-signatures-in-java/), affecte la vérification de signature ECDSA dans Java 15 à 18 (le fournisseur `SunEC`).
+
+## Exemple
+
+Un JWT ES256 valide a une signature brute `R || S` de 64 octets. L'attaque par signature psychique remplace ces 64 octets par des zéros (`r = 0`, `s = 0`) tout en laissant l'en-tête et le payload inchangés :
+
+```json
+{
+  "alg": "ES256",
+  "typ": "JWT"
+}
+```
+
+Signature (base64url de 64 octets zéro) :
+
+```bash
+AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
+```
+
+La longueur de la signature dépend de la courbe : 64 octets pour `ES256`, 96 octets pour `ES384`, et 132 octets pour `ES512`.
+
+## Comment tester ?
+
+Si vous voulez tester si votre serveur est vulnérable à la vulnérabilité « JWT Psychic Signature », vous pouvez utiliser la commande `crack` :
+
+```bash
+jwtop crack [token] --url [url]
+```
+
+La sonde `psychicsig` est automatiquement ignorée pour les tokens non ECDSA, et nécessite un serveur en direct (la vulnérabilité tient au runtime du vérificateur, ce n'est pas quelque chose de détectable hors ligne à partir du seul token).
+
+Pour générer un token avec une signature ECDSA à zéro, utilisez la commande `exploit psychicsig` :
+
+```bash
+jwtop exploit psychicsig [token]
+```
+
+## Quel est l'impact ?
+
+Un serveur qui exécute un JDK affecté (15, 16, 17, ou premiers correctifs de 18) et qui vérifie des JWT signés en ECDSA accepte un token forgé pour n'importe quels claims et n'importe quelle clé publique. C'est un contournement complet de l'authentification : un attaquant peut usurper l'identité de n'importe quel utilisateur, élever ses privilèges, ou forger des tokens pour des services auxquels il n'a aucun accès légitime.
+
+## Comment corriger ?
+
+- **Corriger le JDK** : mettez à niveau vers une version de Java intégrant le correctif de la CVE-2022-21449 (JDK 18.0.1, 17.0.3, 15.0.7, ou ultérieur).
+- **Valider les composants de la signature** : si vous implémentez ou auditez directement une vérification ECDSA, assurez-vous que `r` et `s` sont vérifiés comme appartenant à l'intervalle `[1, n-1]` (jamais zéro) avant utilisation.
+- **Utiliser des bibliothèques et suites de tests éprouvées** : vérifiez de façon croisée votre code crypto maison ou personnalisé contre le [projet Wycheproof](https://github.com/google/wycheproof), qui inclut des vecteurs de test pour exactement cette classe de bug.
+- **Défense en profondeur** : ne comptez pas uniquement sur la vérification de la signature — validez aussi les claims (`iss`, `aud`, `exp`) et envisagez l'épinglage algorithme/clé.

@@ -1,0 +1,63 @@
+---
+title: find
+description: Extrait des tokens JWT cachés dans du texte, un fichier ou stdin.
+---
+
+Scanne un texte quelconque à la recherche de JWT embarqués et affiche chacun d'eux, un par ligne. Les JWT se retrouvent souvent cachés dans un paramètre de requête d'URL, un corps de réponse JSON, une page HTML, un fichier de log ou un en-tête `Authorization` — `find` les localise et les extrait pour qu'ils puissent être chaînés vers d'autres commandes `jwtop`.
+
+Seuls les JWT structurellement valides sont retournés ; les chaînes qui y ressemblent mais échouent au décodage sont silencieusement ignorées.
+
+## Utilisation
+
+```sh
+jwtop find [text]
+jwtop find --file <path>
+echo <text> | jwtop find
+```
+
+Sources d'entrée, par ordre de priorité :
+
+1. `--file <path>` — lit le texte depuis un fichier
+2. `[text]` — argument de texte en ligne
+3. stdin — utilisé si aucun argument ni `--file` n'est fourni
+
+## Exemples
+
+```sh
+# Extraire tous les JWT d'une réponse HTTP capturée
+curl -s https://api.example.com/profile | jwtop find
+
+# Extraire le JWT d'une URL
+jwtop find "https://example.com/callback?token=eyJhbGciOiJIUzI1NiJ9...&state=xyz"
+
+# Scanner une page ou un fichier de log sauvegardé
+jwtop find --file response.html
+```
+
+## Combiner avec d'autres commandes
+
+Comme toute commande acceptant un token peut aussi le lire depuis stdin, `find` s'intègre directement dans un pipeline :
+
+```sh
+# Décoder le premier JWT trouvé dans un fichier
+jwtop find --file response.html | head -1 | jwtop decode
+
+# Décoder un JWT trouvé dans une URL
+echo "https://example.com/?token=eyJ..." | jwtop find | jwtop decode
+
+# Vérifier tous les JWT d'un fichier de log
+jwtop find --file app.log | while read tok; do
+  jwtop verify "$tok" --secret mysecret && echo "OK: $tok"
+done
+
+# Cracker tous les tokens trouvés dans une réponse HTTP capturée
+curl -s https://api.example.com/profile | jwtop find | while read tok; do
+  jwtop crack "$tok"
+done
+```
+
+import { Aside } from '@/components/docs';
+
+<Aside type="note">
+  `find` affiche un token par ligne, sans doublons. Lorsque plusieurs tokens sont trouvés, utilisez un pipe vers `head -1` ou une boucle pour les traiter individuellement.
+</Aside>

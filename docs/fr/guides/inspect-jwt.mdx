@@ -1,0 +1,66 @@
+---
+title: Inspecter un JWT inconnu
+description: Décodez et lisez l'en-tête et les claims d'un JWT sans avoir besoin de la clé de signature.
+---
+
+Lorsque vous recevez un JWT d'un service tiers, d'un log ou d'une session de débogage, vous voulez souvent lire son contenu avant d'avoir la clé de signature ou de connaître l'algorithme. `jwtop decode` fait cela sans aucun matériel de clé.
+
+## Avec la CLI
+
+```sh
+jwtop decode <token>
+```
+
+Exemple — inspecter un token depuis une variable d'environnement :
+
+```sh
+jwtop decode $ACCESS_TOKEN
+```
+
+Sortie :
+
+```
+Header:
+{
+  "alg": "RS256",  // Algorithme — comment le token est signé (ou "none")
+  "typ": "JWT",  // Type — type de média du token, généralement "JWT"
+  "kid": "abc123"  // Key ID — indique quelle clé a été utilisée pour signer le token
+}
+
+Claims:
+{
+  "sub": "user-42",  // Subject — le principal auquel se rapporte le token
+  "iss": "https://auth.example.com",  // Issuer — qui a créé et signé le token
+  "aud": "api.example.com",  // Audience — destinataire(s) prévu(s) du token
+  "exp": 1740000000,  // Expiration Time — le token doit être rejeté après cette date — 2025-02-19T22:40:00Z (il y a un moment)
+  "iat": 1739996400,  // Issued At — quand le token a été créé — 2025-02-19T21:40:00Z (il y a un moment)
+  "roles": ["admin", "editor"]
+}
+
+Signature:
+<base64url>
+
+⚠ Token is EXPIRED (expired some time ago)
+```
+
+Par défaut, `jwtop decode` ajoute une courte description à chaque champ d'en-tête/claim standard qu'il reconnaît, juste à côté de la valeur sous forme de `// commentaire` inline — pas besoin de croiser avec un tableau séparé. `exp`/`nbf`/`iat` obtiennent également une date lisible à côté de la valeur Unix brute, et un statut d'expiration sur une ligne s'affiche après la signature. Les claims personnalisés, spécifiques à l'application (comme `roles` ci-dessus), sont laissés tels quels.
+
+Cette sortie annotée n'est pas du JSON valide (les commentaires ne font pas partie de la grammaire JSON). Passez `--raw` pour obtenir du JSON simple et valide, sans commentaires ni statut d'expiration — par exemple pour le transmettre à `jq` ou à un autre outil :
+
+```sh
+jwtop decode --raw $ACCESS_TOKEN
+```
+
+## Ce qu'il faut examiner
+
+| Champ | Description |
+|---|---|
+| `alg` | Algorithme de signature — détermine quel type de clé utiliser pour la vérification |
+| `kid` | Key ID — à utiliser avec un endpoint JWKS pour récupérer la bonne clé publique |
+| `exp` | Timestamp d'expiration (Unix) — vérifiez si le token est encore valide |
+| `iss` | Issuer — confirme l'origine du token |
+| `sub` | Subject — le principal représenté par le token |
+
+## Étape suivante
+
+Une fois que vous connaissez l'algorithme et avez la clé, utilisez [`jwtop verify`](../reference/cli/verify) pour confirmer la signature.

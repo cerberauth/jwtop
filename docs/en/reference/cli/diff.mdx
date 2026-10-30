@@ -1,0 +1,88 @@
+---
+title: diff
+description: Compare two or more JWTs and show header/claims/signature differences.
+---
+
+import { Aside } from '@/components/docs';
+
+Compare a base JWT against one or more other JWTs and report which header fields, claims, and the signature differ. Useful for spotting unexpected drift between two tokens — e.g. before/after a re-signing step, or comparing tokens issued for different users/environments.
+
+## Usage
+
+```sh
+jwtop diff <base-token> <other-token> [<other-token>...]
+jwtop find --file page.html | jwtop diff
+```
+
+The first token is the base; every subsequent token is diffed against it. Tokens can be passed as positional arguments, or piped one per line via stdin when fewer than two are given as arguments — this lets `diff` compose directly with [`find`](./find).
+
+## Flags
+
+| Flag | Description |
+|---|---|
+| `--format` | Output format: `text` (human-readable, default) or `json` (machine-readable, for scripts/CI) |
+
+## Examples
+
+**Human-readable (default)**
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN
+```
+
+Output:
+
+```
+Base: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+
+--- Token 1: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+  Claims:
+    - iat: 1516239022
+    - name: "John Doe"
+    + role: "admin"
+  Signature: changed
+```
+
+Each changed field is prefixed `+` (added on the compared token), `-` (removed), or `~` (value changed, shown as `old -> new`). A token that matches the base exactly prints `(identical)`.
+
+**Machine-readable, for scripts**
+
+```sh
+jwtop diff $OLD_TOKEN $NEW_TOKEN --format json | jq '.diffs[0].claims'
+```
+
+The JSON shape:
+
+```json
+{
+  "base": "<base token>",
+  "diffs": [
+    {
+      "token": "<compared token>",
+      "header": [{ "key": "alg", "status": "changed", "base": "HS256", "other": "RS256" }],
+      "claims": [{ "key": "role", "status": "added", "other": "admin" }],
+      "signatureChanged": true,
+      "identical": false
+    }
+  ]
+}
+```
+
+`status` is one of `added`, `removed`, or `changed`. `base`/`other` are omitted where not applicable (e.g. `base` is absent for an `added` field).
+
+**Compare every token found in a captured response**
+
+```sh
+curl -s https://api.example.com/profile | jwtop find | jwtop diff
+```
+
+<Aside type="note">
+  Like [`decode`](./decode), signatures are compared as raw strings — `diff` does not verify either token. Use [`verify`](./verify) first if you need to confirm a token's signature is valid.
+</Aside>
+
+## Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | Every compared token is identical to the base |
+| `1` | At least one compared token differs from the base, or an argument/format error occurred |

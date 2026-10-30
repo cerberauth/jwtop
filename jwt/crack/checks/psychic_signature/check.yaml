@@ -9,4 +9,5 @@ depends_on:
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-347"
+capec_id: "CAPEC-475"
 owasp: "API2:2023"

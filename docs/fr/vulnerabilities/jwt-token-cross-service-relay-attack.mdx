@@ -1,0 +1,79 @@
+---
+title: Attaque par relais inter-services de token
+description: Une vulnérabilité survient lorsqu'un token est forgé par le même service mais que ce service ne vérifie pas l'émetteur ou l'audience.
+---
+
+import { Tabs, TabItem } from '@/components/docs'
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td>
+      <ul>
+        <li><a href="https://cwe.mitre.org/data/definitions/287.html">CWE-287: Improper Authentication</a></li>
+        <li><a href="https://cwe.mitre.org/data/definitions/20.html">CWE-20: Improper Input Validation</a></li>
+      </ul>
+    </td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td>
+      <a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a>
+    </td>
+  </tr>
+</table>
+
+Cette vulnérabilité survient lorsqu'un JSON Web Token (JWT) est signé par le même service (ex. un fournisseur d'identité social) mais que l'application qui le reçoit ne vérifie pas le claim `iss` (émetteur) et/ou `aud` (audience). De nombreux fournisseurs d'identité utilisent la même paire de clés de signature pour tous leurs clients. Si une application ne vérifie que la signature mais pas le claim `aud`, un attaquant peut créer son propre projet chez le même fournisseur, obtenir un token valablement signé pour son propre projet, et le « relayer » vers l'application victime. L'application victime verra une signature valide provenant d'un fournisseur de confiance et acceptera le token à tort.
+
+## Services impactés
+
+### Fournisseurs d'identité sociale
+
+La plupart des fournisseurs d'identité sociale (Google, Facebook, Microsoft, Apple) utilisent des paires de clés partagées. Vous **devez** vérifier le claim `aud` pour vous assurer que le token était destiné à votre application.
+
+### Services IAM / d'autorisation
+
+Des services comme Firebase ou Google Identity Platform utilisent aussi des clés partagées. `iss` et `aud` doivent tous deux être vérifiés.
+
+## Exemple
+
+Un attaquant crée un projet chez le même fournisseur que la victime et obtient un token :
+
+```json
+{
+  "iss": "https://accounts.google.com",
+  "aud": "attacker-project-id.apps.googleusercontent.com",
+  "sub": "user-to-impersonate",
+  "email": "victim@example.com"
+}
+```
+
+Si l'application victime (avec `client_id` = `victim-project-id`) vérifie seulement que le token est signé par Google, elle acceptera ce token, permettant à l'attaquant d'usurper l'identité de la victime.
+
+## Comment tester ?
+
+Vous pouvez utiliser `jwtop decode` pour inspecter les claims `iss` et `aud` des tokens que vous recevez :
+
+```bash
+jwtop decode [token]
+```
+
+Pour tester cette vulnérabilité :
+1. Créez un second projet avec le même fournisseur d'identité.
+2. Obtenez un token valide pour ce second projet.
+3. Envoyez-le à l'API de votre projet original.
+4. Si l'API accepte la requête, elle est vulnérable aux attaques par relais inter-services.
+
+## Quel est l'impact ?
+
+Un attaquant peut usurper l'identité de n'importe quel utilisateur possédant un compte chez le fournisseur d'identité partagé. Cela mène à une prise de contrôle complète de compte et à un accès non autorisé.
+
+## Comment corriger ?
+
+- **Vérifiez le claim `aud`** : assurez-vous qu'il correspond au Client ID ou à l'identifiant de votre application.
+- **Vérifiez le claim `iss`** : assurez-vous qu'il correspond à l'URL d'émetteur attendue.
+- **Utilisez des bibliothèques standard** : la plupart des bibliothèques JWT fournissent un support intégré pour vérifier ces claims. Assurez-vous qu'il est activé et correctement configuré.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/cerberauth/jwtop/jwt"
@@ -72,4 +73,50 @@ func resolveKey(secret, keyFile string, publicKey bool) (interface{}, []byte, er
 // ParseSigningMethod returns the jwt.SigningMethod for the given algorithm name.
 func ParseSigningMethod(alg string) (jwtlib.SigningMethod, error) {
 	return jwt.ParseSigningMethod(alg)
+}
+
+// readTokenArg returns the JWT token string. When args contains at least one
+// element its first element is returned directly. Otherwise the entire content
+// of stdin is read, trimmed, and returned — allowing any token-accepting
+// command to be used in a pipeline:
+//
+//	jwtop find --file page.html | jwtop decode
+func readTokenArg(args []string) (string, error) {
+	if len(args) > 0 {
+		return args[0], nil
+	}
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		return "", fmt.Errorf("reading stdin: %w", err)
+	}
+	token := strings.TrimSpace(string(data))
+	if token == "" {
+		return "", errors.New("no token provided: pass a token as an argument or via stdin")
+	}
+	return token, nil
+}
+
+// readTokensArg returns two or more JWT token strings for commands that
+// compare multiple tokens. When args already contains two or more elements
+// they are returned as-is. Otherwise stdin is read, one token per line, and
+// appended to args — allowing e.g. `jwtop find --file page.html | jwtop diff`
+// to diff every token discovered by find.
+func readTokensArg(args []string) ([]string, error) {
+	tokens := append([]string{}, args...)
+	if len(tokens) < 2 {
+		data, err := io.ReadAll(os.Stdin)
+		if err != nil {
+			return nil, fmt.Errorf("reading stdin: %w", err)
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			line = strings.TrimSpace(line)
+			if line != "" {
+				tokens = append(tokens, line)
+			}
+		}
+	}
+	if len(tokens) < 2 {
+		return nil, errors.New("diff requires at least two tokens: pass them as arguments or pipe multiple tokens (one per line) via stdin")
+	}
+	return tokens, nil
 }
