@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cerberauth/jwtop/jwt/crack"
+	"github.com/cerberauth/jwtop/jwt/exploit"
 )
 
 func makeHS256Token(t *testing.T, secret string) string {
@@ -724,6 +725,51 @@ func TestProbeAll_Offline_KidSQL_CustomTableOption_StillSkipped(t *testing.T) {
 	require.True(t, ok)
 	assert.True(t, r.Skipped)
 	assert.Contains(t, r.SkipReason, "requires live server")
+}
+
+func TestProbeAll_KidSQL_TriesTablesInOrder_ReportsFirstWorkingTable(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	const workingTable = "right_table"
+	workingToken, err := exploit.KidSQLInjection(token, exploit.BuildKidSQLPayload(workingTable), []byte("secret"))
+	require.NoError(t, err)
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") == "Bearer "+workingToken {
+			w.WriteHeader(200)
+		} else {
+			w.WriteHeader(401)
+		}
+	}))
+	defer srv.Close()
+
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:          srv.URL,
+		KidSQLTables: []string{"wrong_table", workingTable, "unreached_table"},
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID SQL Injection")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.True(t, r.Vulnerable)
+	assert.Contains(t, r.Extra, workingTable)
+}
+
+func TestProbeAll_KidSQL_NoTableWorks_NotVulnerableNoError(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	srv := staticServer(401)
+	defer srv.Close()
+
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:          srv.URL,
+		KidSQLTables: []string{"table_a", "table_b"},
+	})
+	require.NoError(t, err)
+
+	r, ok := findResult(results, "KID SQL Injection")
+	require.True(t, ok)
+	assert.False(t, r.Skipped)
+	assert.False(t, r.Vulnerable)
 }
 
 func TestProbeAll_Offline_KidPath_CustomPathOption_StillSkipped(t *testing.T) {
