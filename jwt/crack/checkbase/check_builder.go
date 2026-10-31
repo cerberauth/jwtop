@@ -23,7 +23,7 @@ func SendToken(ctx context.Context, target harnessx.Target, store harnessx.Resul
 		return r, nil
 	}
 	pctx := target.Data.(*ProbeCtx)
-	return SendProbe(ctx, pctx.Probe, target.URL, token, pctx.TokenLocation, store)
+	return SendProbe(ctx, pctx.Probe, target.URL, token, pctx.TokenLocation, store, pctx.NewRequest)
 }
 
 // NewTokenCheck builds the common "mutate the token, send it, compare to
