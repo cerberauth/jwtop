@@ -1,6 +1,8 @@
 package checkbase
 
 import (
+	"context"
+	"net/http"
 	"time"
 
 	"github.com/cerberauth/harnessx"
@@ -79,6 +81,17 @@ type ProbeCtx struct {
 	FuzzEnabled       bool
 	FuzzMaxStringLen  int
 	CrackedHMACSecret string
+	// NewRequest, when set, builds the base request used for every probe —
+	// and for the baseline capture, so the two stay comparable — in place
+	// of a bare GET to the target URL. It receives the token under test and
+	// returns the request to send; the token is then placed on it at
+	// TokenLocation via probe.ApplyCredential (see NewTokenRequest).
+	//
+	// This lets a caller exercise a POST endpoint, one that needs a request
+	// body, or one that needs extra headers — today every probe goes
+	// through probe.NewCredentialRequest, a plain GET carrying only the
+	// token. Left nil, behavior is unchanged.
+	NewRequest func(ctx context.Context, token string) (*http.Request, error)
 }
 
 // ExternalToolOptions controls whether the weak-secret check falls back to
