@@ -53,11 +53,29 @@ type ProbeCtx struct {
 	TokenLocation      TokenLocation
 	ExternalTools      ExternalToolOptions
 	ExternalToolEvents *[]ExternalToolEvent
-	JKUServerAddr      string
-	X5UServerAddr      string
-	FuzzEnabled        bool
-	FuzzMaxStringLen   int
-	CrackedHMACSecret  string
+	// JKUServerAddr is the bind address (host:port) for the local JWKS
+	// server the jku_injection check stands up to host the forged key —
+	// see exploit.NewJWKSServer, which this address is passed to, and
+	// exploit.JKUInjectionWithLocalServer, which calls it and points the
+	// token's jku header at the resulting (*JWKSServer).URL().
+	//
+	// It must be an address the *target server* can reach, not merely one
+	// jwtop itself can bind. "127.0.0.1:0"/"localhost:0" only work when the
+	// target runs on the same host as jwtop; against a remote target, bind
+	// to a publicly reachable interface/port (e.g. "0.0.0.0:8089" behind a
+	// port you've opened, or a tunnel's local endpoint) so the target's
+	// outbound jku fetch actually lands on this server. Left empty, the
+	// check is skipped — jwtop has no way to guess a reachable address.
+	JKUServerAddr string
+	// X5UServerAddr is the x5u_injection equivalent of JKUServerAddr: the
+	// bind address for the local certificate server started via
+	// exploit.NewCertServer / exploit.X5UInjectionWithLocalServer. The same
+	// reachability requirement applies — it must be an address the target
+	// can reach, not just jwtop.
+	X5UServerAddr     string
+	FuzzEnabled       bool
+	FuzzMaxStringLen  int
+	CrackedHMACSecret string
 }
 
 // ExternalToolOptions controls whether the weak-secret check falls back to
