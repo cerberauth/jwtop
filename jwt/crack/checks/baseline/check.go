@@ -37,7 +37,7 @@ func capture(ctx context.Context, target harnessx.Target, _ harnessx.ResultStore
 
 	status := pctx.ExpectedStatus
 	if status == 0 {
-		req, err := checkbase.NewTokenRequest(ctx, target.URL, pctx.InvalidToken, pctx.TokenLocation)
+		req, err := checkbase.NewTokenRequest(ctx, target.URL, pctx.InvalidToken, pctx.TokenLocation, pctx.NewRequest)
 		if err != nil {
 			return harnessx.Snapshot{}, err
 		}

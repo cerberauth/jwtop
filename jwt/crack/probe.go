@@ -2,6 +2,7 @@ package crack
 
 import (
 	"context"
+	"net/http"
 	"time"
 
 	"github.com/cerberauth/harnessx"
@@ -66,6 +67,12 @@ type ProbeOptions struct {
 	X5UServerAddr    string
 	Fuzz             bool
 	FuzzMaxStringLen int
+	// NewRequest, when set, builds the base request used for every probe
+	// (and the baseline capture) in place of a bare GET to URL — letting a
+	// caller exercise a POST endpoint, one needing a request body, or one
+	// needing extra headers. See checkbase.ProbeCtx's doc comment on the
+	// same field for the full contract. Left nil, behavior is unchanged.
+	NewRequest func(ctx context.Context, token string) (*http.Request, error)
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -150,6 +157,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		X5UServerAddr:      opts.X5UServerAddr,
 		FuzzEnabled:        opts.Fuzz,
 		FuzzMaxStringLen:   opts.FuzzMaxStringLen,
+		NewRequest:         opts.NewRequest,
 	}
 
 	checks, defs := BuildChecks()
