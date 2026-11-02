@@ -87,6 +87,12 @@ func roundDuration(d time.Duration) time.Duration {
 	return d.Round(time.Millisecond)
 }
 
+// External cracking tool metrics, declared in argvio.metrics.yaml.
+var (
+	externalToolRuns     = telemetryx.NewCounter("crack.external-tool", "tool", "outcome")
+	externalToolDuration = telemetryx.NewDuration("crack.external-tool.run", "tool", "outcome")
+)
+
 // recordExternalToolEvents counts each external tool run by tool and outcome,
 // and prints a stderr warning for each that timed out or failed. A timeout gets
 // its own message, distinct from a plain error, so a run that quietly gave up
@@ -95,8 +101,8 @@ func recordExternalToolEvents(ctx context.Context, events []checkbase.ExternalTo
 	for _, ev := range events {
 		tool := telemetryx.Vocab(ev.Tool, toolJohn, toolHashcat)
 		outcome := telemetryx.Vocab(ev.Outcome, outcomeSuccess, outcomeNotFound, outcomeError, outcomeTimeout)
-		telemetryx.Counter(ctx, "crack.external-tool", 1, tool+"."+outcome)
-		telemetryx.Duration(ctx, "crack.external-tool", ev.Duration, tool)
+		externalToolRuns.Add(ctx, 1, tool, outcome)
+		externalToolDuration.Record(ctx, ev.Duration, tool, outcome)
 
 		if ev.TimedOut {
 			fmt.Fprintf(os.Stderr, "[!] %s timed out after %s without finding the secret — try a larger --crack-timeout or a smaller wordlist\n", ev.Tool, roundDuration(ev.Duration))

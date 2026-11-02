@@ -70,6 +70,7 @@ Combine with other commands:
 			if err != nil {
 				return telemetryx.Reason(fmt.Errorf("reading stdin: %w", err), "failed-to-read-stdin")
 			}
+			tokensFound.Record(cmd.Context(), float64(len(tokens)))
 			if len(tokens) == 0 {
 				return nil
 			}
@@ -78,6 +79,7 @@ Combine with other commands:
 		}
 
 		tokens := jwt.FindAll(text)
+		tokensFound.Record(cmd.Context(), float64(len(tokens)))
 		if len(tokens) == 0 {
 			return nil
 		}
@@ -86,6 +88,9 @@ Combine with other commands:
 		return nil
 	},
 }
+
+// tokensFound is how many JWTs each find run extracts (argvio.metrics.yaml).
+var tokensFound = telemetryx.NewValue("find.tokens", telemetryx.UnitCount)
 
 func init() {
 	findCmd.Flags().StringVar(&findFile, "file", "", "Path to a file to scan for JWTs")

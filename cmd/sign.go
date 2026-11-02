@@ -36,6 +36,7 @@ The token can be supplied as a positional argument or piped via stdin:
 		if signAlg == "" {
 			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
+		recordAlgorithm(cmd.Context(), signAlg)
 
 		writer, err := editor.NewTokenEditor(inputToken)
 		if err != nil {

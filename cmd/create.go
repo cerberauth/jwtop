@@ -30,6 +30,7 @@ var createCmd = &cobra.Command{
 		if createAlg == "" {
 			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
+		recordAlgorithm(cmd.Context(), createAlg)
 
 		claims := make(map[string]string)
 

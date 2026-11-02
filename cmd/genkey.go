@@ -50,6 +50,7 @@ PS512, ES256, ES384, ES512, EdDSA.
 		if genkeyAlg == "" {
 			return telemetryx.Reason(fmt.Errorf("--alg is required"), "missing-algorithm")
 		}
+		recordAlgorithm(cmd.Context(), genkeyAlg)
 
 		result, err := jwt.GenerateKeyPair(jwt.GenerateKeyOptions{
 			Algorithm:   genkeyAlg,

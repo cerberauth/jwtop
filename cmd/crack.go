@@ -12,6 +12,7 @@ import (
 	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
 	"github.com/cerberauth/x/reportx/harnessreport"
 	"github.com/cerberauth/x/telemetryx"
+	"github.com/cerberauth/x/telemetryx/scanmetrics"
 	"github.com/spf13/cobra"
 )
 
@@ -146,13 +147,16 @@ Use only against systems you own or have explicit written permission to test.`,
 
 		var externalEvents []checkbase.ExternalToolEvent
 		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
-			URL:                crackURL,
-			ExpectedStatus:     crackExpectedStatus,
-			PublicKeyPEM:       pemData,
-			Candidates:         candidates,
-			Workers:            crackWorkers,
-			Delay:              crackDelay,
-			Reporters:          []harnessx.Reporter{reportxReporter},
+			URL:            crackURL,
+			ExpectedStatus: crackExpectedStatus,
+			PublicKeyPEM:   pemData,
+			Candidates:     candidates,
+			Workers:        crackWorkers,
+			Delay:          crackDelay,
+			Reporters: []harnessx.Reporter{reportxReporter, scanmetrics.New(ctx, scanmetrics.Config{
+				CheckDefs:       crack.CheckDefs(),
+				BaselineCheckID: crack.BaselineCheckID,
+			})},
 			KidSQLTable:        crackKidSQLTable,
 			KidPath:            crackKidPath,
 			ExternalTools:      crackExternalTools.toOptions(),
