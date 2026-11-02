@@ -145,6 +145,11 @@ Use only against systems you own or have explicit written permission to test.`,
 			ShowAllFindings: showAllFindings,
 		})
 
+		metricsReporter := scanmetrics.New(ctx, scanmetrics.Config{
+			CheckDefs:       crack.CheckDefs(),
+			BaselineCheckID: crack.BaselineCheckID,
+		})
+
 		var externalEvents []checkbase.ExternalToolEvent
 		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
 			URL:            crackURL,
@@ -153,10 +158,7 @@ Use only against systems you own or have explicit written permission to test.`,
 			Candidates:     candidates,
 			Workers:        crackWorkers,
 			Delay:          crackDelay,
-			Reporters: []harnessx.Reporter{reportxReporter, scanmetrics.New(ctx, scanmetrics.Config{
-				CheckDefs:       crack.CheckDefs(),
-				BaselineCheckID: crack.BaselineCheckID,
-			})},
+			Reporters:          []harnessx.Reporter{reportxReporter, metricsReporter},
 			KidSQLTable:        crackKidSQLTable,
 			KidPath:            crackKidPath,
 			ExternalTools:      crackExternalTools.toOptions(),
