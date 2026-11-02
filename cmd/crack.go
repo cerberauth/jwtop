@@ -152,12 +152,12 @@ Use only against systems you own or have explicit written permission to test.`,
 
 		var externalEvents []checkbase.ExternalToolEvent
 		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
-			URL:            crackURL,
-			ExpectedStatus: crackExpectedStatus,
-			PublicKeyPEM:   pemData,
-			Candidates:     candidates,
-			Workers:        crackWorkers,
-			Delay:          crackDelay,
+			URL:                crackURL,
+			ExpectedStatus:     crackExpectedStatus,
+			PublicKeyPEM:       pemData,
+			Candidates:         candidates,
+			Workers:            crackWorkers,
+			Delay:              crackDelay,
 			Reporters:          []harnessx.Reporter{reportxReporter, metricsReporter},
 			KidSQLTable:        crackKidSQLTable,
 			KidPath:            crackKidPath,
