@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -10,6 +11,7 @@ import (
 
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/fsx"
+	"github.com/cerberauth/x/telemetryx"
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
 
@@ -119,4 +121,19 @@ func readTokensArg(args []string) ([]string, error) {
 		return nil, errors.New("diff requires at least two tokens: pass them as arguments or pipe multiple tokens (one per line) via stdin")
 	}
 	return tokens, nil
+}
+
+// jwtAlgorithms are the JWA algorithms jwtop names in its metrics. Anything
+// else the user passes is reported as "other".
+var jwtAlgorithms = []string{
+	"hs256", "hs384", "hs512", "rs256", "rs384", "rs512", "ps256", "ps384", "ps512",
+	"es256", "es384", "es512", "eddsa", "none",
+}
+
+// algorithmCounter counts the algorithms tokens and keys are made with, by
+// command (argvio.metrics.yaml).
+var algorithmCounter = telemetryx.NewCounter("jwt.algorithm", "alg")
+
+func recordAlgorithm(ctx context.Context, alg string) {
+	algorithmCounter.Add(ctx, 1, telemetryx.Vocab(alg, jwtAlgorithms...))
 }

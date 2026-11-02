@@ -11,11 +11,7 @@ import (
 	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/x/telemetryx"
 	"github.com/spf13/cobra"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
-
-var decodeOtelName = "github.com/cerberauth/jwtop/cmd/decode"
 
 var decodeRaw bool
 
@@ -31,37 +27,26 @@ The token can be supplied as a positional argument or piped via stdin:
   jwtop find --file page.html | jwtop decode`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(decodeOtelName)
-		decodeSuccessCounter, _ := telemetryMeter.Int64Counter("decode.success.counter")
-		decodeErrorCounter, _ := telemetryMeter.Int64Counter("decode.error.counter")
-
-		ctx := cmd.Context()
 
 		tokenString, err := readTokenArg(args)
 		if err != nil {
-			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
-			return err
+			return telemetryx.Reason(err, "no-token")
 		}
 
 		decoded, err := jwt.Decode(tokenString)
 		if err != nil {
-			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to decode token")))
-			return fmt.Errorf("failed to decode token: %w", err)
+			return telemetryx.Reason(fmt.Errorf("failed to decode token: %w", err), "failed-to-decode-token")
 		}
 
 		headerJSON, err := json.MarshalIndent(decoded.Header, "", "  ")
 		if err != nil {
-			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to marshal header")))
-			return err
+			return telemetryx.Reason(err, "failed-to-marshal-header")
 		}
 
 		claimsJSON, err := json.MarshalIndent(decoded.Claims, "", "  ")
 		if err != nil {
-			decodeErrorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "failed to marshal claims")))
-			return err
+			return telemetryx.Reason(err, "failed-to-marshal-claims")
 		}
-
-		decodeSuccessCounter.Add(ctx, 1)
 
 		headerOut, claimsOut := string(headerJSON), string(claimsJSON)
 		if !decodeRaw {
