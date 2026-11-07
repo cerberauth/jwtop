@@ -10,7 +10,6 @@ import (
 
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	"github.com/cerberauth/jwtop/jwt/exploit/external"
-	"github.com/cerberauth/x/telemetryx"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
@@ -63,10 +62,8 @@ func TestReportExternalToolAvailability_AdvisesWhenNotEnabled(t *testing.T) {
 		}
 	}
 
-	counter, _ := telemetryx.GetMeterProvider().Meter("test").Int64Counter("test.detected")
-
 	out := withCapturedStderr(t, func() {
-		reportExternalToolAvailability(context.Background(), counter, externalToolFlags{})
+		reportExternalToolAvailability(context.Background(), externalToolFlags{})
 	})
 
 	assert.Contains(t, out, "john detected on PATH")
@@ -83,10 +80,8 @@ func TestReportExternalToolAvailability_SilentWhenEnabled(t *testing.T) {
 		}
 	}
 
-	counter, _ := telemetryx.GetMeterProvider().Meter("test").Int64Counter("test.detected")
-
 	out := withCapturedStderr(t, func() {
-		reportExternalToolAvailability(context.Background(), counter, externalToolFlags{John: true, Hashcat: true})
+		reportExternalToolAvailability(context.Background(), externalToolFlags{John: true, Hashcat: true})
 	})
 
 	assert.Empty(t, out)
@@ -97,10 +92,8 @@ func TestReportExternalToolAvailability_SilentWhenNotInstalled(t *testing.T) {
 	defer func() { detectExternalTools = origDetect }()
 	detectExternalTools = func() external.Availability { return external.Availability{} }
 
-	counter, _ := telemetryx.GetMeterProvider().Meter("test").Int64Counter("test.detected")
-
 	out := withCapturedStderr(t, func() {
-		reportExternalToolAvailability(context.Background(), counter, externalToolFlags{})
+		reportExternalToolAvailability(context.Background(), externalToolFlags{})
 	})
 
 	assert.Empty(t, out)
@@ -114,7 +107,6 @@ func TestExternalToolErrorReason(t *testing.T) {
 }
 
 func TestRecordExternalToolEvents_WarnsOnTimeout(t *testing.T) {
-	counters := buildToolOutcomeCounters(telemetryx.GetMeterProvider().Meter("test"), "test.weaksecret")
 	tracer := otel.Tracer("test")
 
 	events := []checkbase.ExternalToolEvent{
@@ -122,33 +114,28 @@ func TestRecordExternalToolEvents_WarnsOnTimeout(t *testing.T) {
 	}
 
 	out := withCapturedStderr(t, func() {
-		recordExternalToolEvents(context.Background(), tracer, counters, "test.weaksecret", events)
+		recordExternalToolEvents(context.Background(), tracer, "test.weaksecret", events)
 	})
 
 	assert.Contains(t, out, "john timed out after")
 }
 
 func TestRecordExternalToolEvents_SilentOnSuccess(t *testing.T) {
-	counters := buildToolOutcomeCounters(telemetryx.GetMeterProvider().Meter("test"), "test.weaksecret")
 	tracer := otel.Tracer("test")
-
 	events := []checkbase.ExternalToolEvent{
 		{Tool: "hashcat", Outcome: "success", Duration: time.Second},
 	}
 
 	out := withCapturedStderr(t, func() {
-		recordExternalToolEvents(context.Background(), tracer, counters, "test.weaksecret", events)
+		recordExternalToolEvents(context.Background(), tracer, "test.weaksecret", events)
 	})
 
 	assert.Empty(t, out)
 }
 
 func TestRecordExternalToolEvents_EmptyIsNoop(t *testing.T) {
-	counters := buildToolOutcomeCounters(telemetryx.GetMeterProvider().Meter("test"), "test.weaksecret")
-	tracer := otel.Tracer("test")
-
 	out := withCapturedStderr(t, func() {
-		recordExternalToolEvents(context.Background(), tracer, counters, "test.weaksecret", nil)
+		recordExternalToolEvents(context.Background(), otel.Tracer("test"), "test.weaksecret", nil)
 	})
 	assert.Empty(t, out)
 }

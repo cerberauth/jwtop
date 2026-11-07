@@ -9,9 +9,10 @@ import (
 
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	"github.com/cerberauth/jwtop/jwt/exploit/external"
+	"github.com/cerberauth/x/telemetryx"
+	"github.com/getargvio/argvio-go"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -61,19 +62,19 @@ func registerExternalToolFlags(cmd *cobra.Command, f *externalToolFlags) {
 	cmd.Flags().DurationVar(&f.Timeout, "crack-timeout", 5*time.Minute, "Max time to let an external cracking tool run before it is stopped")
 }
 
-// reportExternalToolAvailability prints a one-line advisory to stderr for
-// each tool found on PATH but not enabled, and increments detectedCounter
-// once per tool found on PATH regardless of whether it's enabled.
-func reportExternalToolAvailability(ctx context.Context, detectedCounter metric.Int64Counter, f externalToolFlags) {
+// reportExternalToolAvailability records each tool found on PATH as a feature,
+// whether or not it is enabled, and prints a one-line advisory to stderr for
+// each one that is not.
+func reportExternalToolAvailability(ctx context.Context, f externalToolFlags) {
 	avail := detectExternalTools()
 	if avail.John.Installed {
-		detectedCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("tool", toolJohn)))
+		telemetryx.Feature(ctx, "crack.john-detected")
 		if !f.useJohn() {
 			fmt.Fprintln(os.Stderr, "[i] john detected on PATH — pass --john (or --john-path) to use it as a fallback for HMAC secret cracking")
 		}
 	}
 	if avail.Hashcat.Installed {
-		detectedCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("tool", toolHashcat)))
+		telemetryx.Feature(ctx, "crack.hashcat-detected")
 		if !f.useHashcat() {
 			fmt.Fprintln(os.Stderr, "[i] hashcat detected on PATH — pass --hashcat (or --hashcat-path) to use it as a fallback for faster HMAC secret cracking")
 		}
@@ -81,7 +82,7 @@ func reportExternalToolAvailability(ctx context.Context, detectedCounter metric.
 }
 
 // externalToolErrorReason maps an ExternalToolEvent error into the small,
-// fixed error_reason vocabulary used across telemetry.
+// fixed error_reason vocabulary of the external tool spans.
 func externalToolErrorReason(err error) string {
 	switch {
 	case err == nil:
@@ -105,54 +106,29 @@ func roundDuration(d time.Duration) time.Duration {
 	return d.Round(time.Millisecond)
 }
 
-type toolOutcomeCounters struct {
-	success  metric.Int64Counter
-	notFound metric.Int64Counter
-	err      metric.Int64Counter
-}
+// External cracking tool metrics, declared in the Argvio catalog.
+var (
+	externalToolRuns     = argvio.NewCounter("crack.external-tool", argvio.Dims("tool", "outcome"))
+	externalToolDuration = argvio.NewDuration("crack.external-tool.run", argvio.Dims("tool", "outcome"))
+)
 
-// buildToolOutcomeCounters creates the success/notfound/error counters for
-// john and hashcat under "<prefix>.<tool>.<outcome>.counter", matching the
-// dot-separated naming convention already used by every other command.
-func buildToolOutcomeCounters(meter metric.Meter, prefix string) map[string]toolOutcomeCounters {
-	counters := make(map[string]toolOutcomeCounters, 2)
-	for _, tool := range []string{toolJohn, toolHashcat} {
-		success, _ := meter.Int64Counter(prefix + "." + tool + ".success.counter")
-		notFound, _ := meter.Int64Counter(prefix + "." + tool + ".notfound.counter")
-		errC, _ := meter.Int64Counter(prefix + "." + tool + ".error.counter")
-		counters[tool] = toolOutcomeCounters{success: success, notFound: notFound, err: errC}
-	}
-	return counters
-}
-
-// recordExternalToolEvents increments the per-tool outcome counters and
-// emits one span per event carrying everything else the tool told us —
-// exit code, duration (via the span's own start/end timestamps), format,
-// tool version, device backend, candidate count. It never receives or
-// records the JWT under test or the cracked secret: ExternalToolEvent has
-// no field for either.
+// recordExternalToolEvents counts each external tool run by tool and outcome
+// for Argvio, emits one OpenTelemetry span per event carrying everything else
+// the tool told us (exit code, duration through the span's own start and end
+// timestamps, format, tool version, device backend, candidate count), and
+// prints a stderr warning for each run that timed out or failed. It never
+// receives or records the JWT under test or the cracked secret:
+// ExternalToolEvent has no field for either.
 //
-// A tool that timed out also gets an explicit stderr warning distinct from
-// a plain error, so a run that quietly gave up isn't mistaken for one that
-// simply found nothing.
-func recordExternalToolEvents(ctx context.Context, tracer trace.Tracer, counters map[string]toolOutcomeCounters, spanPrefix string, events []checkbase.ExternalToolEvent) {
+// A timeout gets its own message, distinct from a plain error, so a run that
+// quietly gave up isn't mistaken for one that simply found nothing.
+func recordExternalToolEvents(ctx context.Context, tracer trace.Tracer, spanPrefix string, events []checkbase.ExternalToolEvent) {
 	now := time.Now()
 	for _, ev := range events {
-		c := counters[ev.Tool]
-		switch ev.Outcome {
-		case outcomeSuccess:
-			if c.success != nil {
-				c.success.Add(ctx, 1)
-			}
-		case outcomeNotFound:
-			if c.notFound != nil {
-				c.notFound.Add(ctx, 1)
-			}
-		default: // outcomeError, outcomeTimeout
-			if c.err != nil {
-				c.err.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", externalToolErrorReason(ev.Err))))
-			}
-		}
+		tool := telemetryx.Vocab(ev.Tool, toolJohn, toolHashcat)
+		outcome := telemetryx.Vocab(ev.Outcome, outcomeSuccess, outcomeNotFound, outcomeError, outcomeTimeout)
+		externalToolRuns.Add(ctx, 1, tool, outcome)
+		externalToolDuration.Record(ctx, ev.Duration, tool, outcome)
 
 		if ev.TimedOut {
 			fmt.Fprintf(os.Stderr, "[!] %s timed out after %s without finding the secret — try a larger --crack-timeout or a smaller wordlist\n", ev.Tool, roundDuration(ev.Duration))
