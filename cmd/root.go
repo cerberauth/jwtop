@@ -9,6 +9,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// argvioAPIKey is jwtop's public_ingest-scoped Argvio API key, selecting the
+// "jwtop" tenant its usage analytics land in. It is not committed: the release
+// build injects it with -ldflags -X from the ARGVIO_API_KEY secret, and a build
+// without one reports nothing.
+var argvioAPIKey string
+
 var (
 	sqaOptOut    bool
 	otelShutdown func(context.Context) error
@@ -24,16 +30,16 @@ func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
 		Version: projectVersion + " (commit=" + commit + ", built=" + date + ")",
 		Short:   "JWT operations CLI",
 		Long:    `JWTop is a command-line tool for decoding, verifying, creating, and signing JWTs.`,
+		// OpenTelemetry stays for observability (crack scan and check spans,
+		// timings and external tool runs); usage analytics go to Argvio, see
+		// telemetryx.Instrument.
 		PersistentPreRun: func(cmd *cobra.Command, args []string) {
 			if !sqaOptOut {
 				otelShutdown, _ = telemetryx.New(cmd.Context(), name, projectVersion, telemetryx.WithCommit(commit), telemetryx.WithBuildDate(date))
 			}
 		},
 		PersistentPostRun: func(cmd *cobra.Command, args []string) {
-			if otelShutdown != nil {
-				_ = otelShutdown(cmd.Context())
-				otelShutdown = nil
-			}
+			shutdownOTel(cmd.Context())
 		},
 	}
 
@@ -56,21 +62,26 @@ func NewRootCmd(projectVersion, commit, date string) (cmd *cobra.Command) {
 // This is called by main.main(). It only needs to happen once to the RootCmd.
 func Execute(projectVersion, commit, date string) {
 	c := NewRootCmd(projectVersion, commit, date)
+	argvioShutdown := telemetryx.Instrument(c, projectVersion, argvioAPIKey)
 	defer func() {
-		if otelShutdown != nil {
-			_ = otelShutdown(context.Background())
-			otelShutdown = nil
-		}
+		_ = argvioShutdown(context.Background())
+		shutdownOTel(context.Background())
 	}()
 
-	if err := c.Execute(); err != nil {
-		if otelShutdown != nil {
-			_ = otelShutdown(context.Background())
-			otelShutdown = nil
-		}
+	if err := telemetryx.Execute(c); err != nil {
+		_ = argvioShutdown(context.Background())
+		shutdownOTel(context.Background())
 
 		fmt.Fprintln(os.Stderr, err)
 		// nolint: gocritic // false positive
 		os.Exit(1)
+	}
+}
+
+// shutdownOTel flushes the OpenTelemetry pipeline once, if one was started.
+func shutdownOTel(ctx context.Context) {
+	if otelShutdown != nil {
+		_ = otelShutdown(ctx)
+		otelShutdown = nil
 	}
 }

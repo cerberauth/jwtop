@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"fmt"
-	"os"
 	"time"
 
 	"github.com/cerberauth/harnessx"
@@ -14,10 +13,9 @@ import (
 	cobrareportx "github.com/cerberauth/x/cobrax/reportx"
 	"github.com/cerberauth/x/reportx/harnessreport"
 	"github.com/cerberauth/x/telemetryx"
+	"github.com/cerberauth/x/telemetryx/scanmetrics"
 	"github.com/spf13/cobra"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 )
 
 var (
@@ -102,30 +100,21 @@ The token can be supplied as a positional argument or piped via stdin:
 Use only against systems you own or have explicit written permission to test.`,
 	Args: cobra.MaximumNArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		telemetryMeter := telemetryx.GetMeterProvider().Meter(crackOtelName)
-		successCounter, _ := telemetryMeter.Int64Counter("crack.success.counter")
-		notFoundCounter, _ := telemetryMeter.Int64Counter("crack.notfound.counter")
-		errorCounter, _ := telemetryMeter.Int64Counter("crack.error.counter")
-		toolDetectedCounter, _ := telemetryMeter.Int64Counter("crack.tool.detected.counter")
-		externalCounters := buildToolOutcomeCounters(telemetryMeter, "crack.weaksecret")
-		tracer := otel.Tracer(crackOtelName)
 
 		ctx := cmd.Context()
 		tokenString, err := readTokenArg(args)
 		if err != nil {
-			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "no token")))
-			return err
+			return telemetryx.Reason(err, "no-token")
 		}
 
-		reportExternalToolAvailability(ctx, toolDetectedCounter, crackExternalTools)
+		reportExternalToolAvailability(cmd.Context(), crackExternalTools)
 
 		var pemData []byte
 		if crackKey != "" {
 			var err error
 			pemData, err = readKeyData(crackKey)
 			if err != nil {
-				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "key read error")))
-				return fmt.Errorf("reading key: %w", err)
+				return telemetryx.Reason(fmt.Errorf("reading key: %w", err), "key-read-error")
 			}
 		}
 
@@ -133,13 +122,14 @@ Use only against systems you own or have explicit written permission to test.`,
 		if crackWordlist != "" {
 			fromFile, err := exploit.SecretsFromFile(crackWordlist)
 			if err != nil {
-				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "wordlist read error")))
-				return fmt.Errorf("reading wordlist: %w", err)
+				return telemetryx.Reason(fmt.Errorf("reading wordlist: %w", err), "wordlist-read-error")
 			}
 			candidates = append(candidates, fromFile...)
 		}
 		candidates = append(candidates, crackSecrets...)
 
+		// OpenTelemetry keeps the scan and check spans and timings for
+		// observability; the product metrics go to Argvio.
 		otelReporter, _ := reporters.NewOTelReporter(
 			ctx,
 			otel.Tracer(crackOtelName),
@@ -168,6 +158,11 @@ Use only against systems you own or have explicit written permission to test.`,
 			ShowAllFindings: showAllFindings,
 		})
 
+		metricsReporter := scanmetrics.New(ctx, scanmetrics.Config{
+			CheckDefs:       crack.CheckDefs(),
+			BaselineCheckID: crack.BaselineCheckID,
+		})
+
 		var externalEvents []checkbase.ExternalToolEvent
 		results, _, err := crack.ProbeAll(ctx, tokenString, crack.ProbeOptions{
 			URL:                crackURL,
@@ -176,7 +171,7 @@ Use only against systems you own or have explicit written permission to test.`,
 			Candidates:         candidates,
 			Workers:            crackWorkers,
 			Delay:              crackDelay,
-			Reporters:          []harnessx.Reporter{otelReporter, reportxReporter},
+			Reporters:          []harnessx.Reporter{otelReporter, reportxReporter, metricsReporter},
 			KidSQLTable:        crackKidSQLTable,
 			KidPath:            crackKidPath,
 			ExternalTools:      crackExternalTools.toOptions(),
@@ -191,15 +186,13 @@ Use only against systems you own or have explicit written permission to test.`,
 				Prefix: crackTokenPrefix,
 			},
 		})
-		recordExternalToolEvents(ctx, tracer, externalCounters, "crack.weaksecret", externalEvents)
+		recordExternalToolEvents(ctx, otel.Tracer(crackOtelName), "crack.weaksecret", externalEvents)
 		if err != nil {
-			errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", "probe error")))
-			return fmt.Errorf("probing token: %w", err)
+			return telemetryx.Reason(fmt.Errorf("probing token: %w", err), "probe-error")
 		}
 
 		for _, r := range results {
 			if r.Err != nil {
-				errorCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("error_reason", r.Name)))
 				cobrareportx.WriteStatus(cmd, fmt.Sprintf("[!] %s: %v\n", r.Name, r.Err))
 			}
 		}
@@ -215,10 +208,8 @@ Use only against systems you own or have explicit written permission to test.`,
 			}
 		}
 		if vulnerable > 0 {
-			successCounter.Add(ctx, 1)
 		} else {
-			notFoundCounter.Add(ctx, 1)
-			os.Exit(1)
+			telemetryx.Exit(cmd, 1)
 		}
 		return nil
 	},
