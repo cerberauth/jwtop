@@ -46,6 +46,10 @@ echo <token> | jwtop crack --url <url>
 | `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
 | `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
 | `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
+| `--other-audience-token` | Validly signed token issued for another audience, sent by `jwt.audience_not_validated` |
+| `--other-issuer-token` | Validly signed token issued by another issuer of the same identity provider, sent by `jwt.issuer_not_validated` |
+| `--signing-key` | Path or URL to the PEM private key matching the token, used to re-sign tokens with modified claims (HMAC tokens use the cracked secret) |
+| `--max-token-lifetime` | Token lifetime above which `jwt.long_lifetime` reports the token (default `24h`) |
 
 ## External cracking tools
 

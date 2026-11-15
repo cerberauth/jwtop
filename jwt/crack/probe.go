@@ -9,17 +9,24 @@ import (
 	"github.com/cerberauth/harnessx/probe"
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	algnone "github.com/cerberauth/jwtop/jwt/crack/checks/alg_none"
+	audiencenotvalidated "github.com/cerberauth/jwtop/jwt/crack/checks/audience_not_validated"
 	"github.com/cerberauth/jwtop/jwt/crack/checks/baseline"
 	blanksecret "github.com/cerberauth/jwtop/jwt/crack/checks/blank_secret"
+	claimremoval "github.com/cerberauth/jwtop/jwt/crack/checks/claim_removal"
+	expiredaccepted "github.com/cerberauth/jwtop/jwt/crack/checks/expired_accepted"
 	claimfuzz "github.com/cerberauth/jwtop/jwt/crack/checks/fuzz"
 	hmacconfusion "github.com/cerberauth/jwtop/jwt/crack/checks/hmac_confusion"
+	issuernotvalidated "github.com/cerberauth/jwtop/jwt/crack/checks/issuer_not_validated"
 	jkuinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jku_injection"
 	jwkinjection "github.com/cerberauth/jwtop/jwt/crack/checks/jwk_injection"
 	kidpathtraversal "github.com/cerberauth/jwtop/jwt/crack/checks/kid_path_traversal"
 	kidsqlinjection "github.com/cerberauth/jwtop/jwt/crack/checks/kid_sql_injection"
+	longlifetime "github.com/cerberauth/jwtop/jwt/crack/checks/long_lifetime"
+	missingexpiry "github.com/cerberauth/jwtop/jwt/crack/checks/missing_expiry"
 	noverification "github.com/cerberauth/jwtop/jwt/crack/checks/no_verification"
 	nullsignature "github.com/cerberauth/jwtop/jwt/crack/checks/null_signature"
 	psychicsignature "github.com/cerberauth/jwtop/jwt/crack/checks/psychic_signature"
+	scopenotvalidated "github.com/cerberauth/jwtop/jwt/crack/checks/scope_not_validated"
 	timestamptampering "github.com/cerberauth/jwtop/jwt/crack/checks/timestamp_tampering"
 	weaksecret "github.com/cerberauth/jwtop/jwt/crack/checks/weak_secret"
 	x5cinjection "github.com/cerberauth/jwtop/jwt/crack/checks/x5c_injection"
@@ -75,7 +82,11 @@ type ProbeOptions struct {
 	// caller exercise a POST endpoint, one needing a request body, or one
 	// needing extra headers. See checkbase.ProbeCtx's doc comment on the
 	// same field for the full contract. Left nil, behavior is unchanged.
-	NewRequest func(ctx context.Context, token string) (*http.Request, error)
+	NewRequest         func(ctx context.Context, token string) (*http.Request, error)
+	OtherAudienceToken string
+	OtherIssuerToken   string
+	SigningKey         interface{}
+	MaxTokenLifetime   time.Duration
 }
 
 // buildChecks returns the full set of registered checks along with a
@@ -102,6 +113,13 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 		weaksecret.Check,
 		timestamptampering.Check,
 		claimfuzz.Check,
+		missingexpiry.Check,
+		longlifetime.Check,
+		expiredaccepted.Check,
+		audiencenotvalidated.Check,
+		issuernotvalidated.Check,
+		claimremoval.Check,
+		scopenotvalidated.Check,
 	}
 
 	defs := make(map[harnessx.CheckID]CheckDef, len(checks))
@@ -120,6 +138,13 @@ func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	defs[weaksecret.Check.ID] = weaksecret.Def
 	defs[timestamptampering.Check.ID] = timestamptampering.Def
 	defs[claimfuzz.Check.ID] = claimfuzz.Def
+	defs[missingexpiry.Check.ID] = missingexpiry.Def
+	defs[longlifetime.Check.ID] = longlifetime.Def
+	defs[expiredaccepted.Check.ID] = expiredaccepted.Def
+	defs[audiencenotvalidated.Check.ID] = audiencenotvalidated.Def
+	defs[issuernotvalidated.Check.ID] = issuernotvalidated.Def
+	defs[claimremoval.Check.ID] = claimremoval.Def
+	defs[scopenotvalidated.Check.ID] = scopenotvalidated.Def
 	for _, c := range checks {
 		def := defs[c.ID]
 		def.Name = c.Name
@@ -161,6 +186,10 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		FuzzEnabled:        opts.Fuzz,
 		FuzzMaxStringLen:   opts.FuzzMaxStringLen,
 		NewRequest:         opts.NewRequest,
+		OtherAudienceToken: opts.OtherAudienceToken,
+		OtherIssuerToken:   opts.OtherIssuerToken,
+		SigningKey:         opts.SigningKey,
+		MaxTokenLifetime:   opts.MaxTokenLifetime,
 	}
 
 	checks, defs := BuildChecks()

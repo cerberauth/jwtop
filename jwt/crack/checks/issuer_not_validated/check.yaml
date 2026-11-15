@@ -1,0 +1,14 @@
+id: "jwt.issuer_not_validated"
+name: "Issuer Not Validated"
+description: "Tests if the server accepts a token from another issuer of the same identity provider: the token given for another issuer, or the token under test re-signed with another iss claim."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-claims-not-validated"
+tags:
+  - claims
+depends_on:
+  - baseline
+  - secret
+cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
+cvss_score: 8.6
+cwe_id: "CWE-287"
+capec_id: "CAPEC-633"
+owasp: "API2:2023"

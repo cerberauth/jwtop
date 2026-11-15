@@ -6,6 +6,7 @@ import (
 
 	"github.com/cerberauth/harnessx"
 	"github.com/cerberauth/harnessx/reporters"
+	"github.com/cerberauth/jwtop/jwt"
 	"github.com/cerberauth/jwtop/jwt/crack"
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
 	"github.com/cerberauth/jwtop/jwt/exploit"
@@ -36,6 +37,10 @@ var (
 	crackX5UServerAddr  string
 	crackFuzz           bool
 	crackFuzzMaxStrLen  int
+	crackOtherAudToken  string
+	crackOtherIssToken  string
+	crackSigningKey     string
+	crackMaxLifetime    time.Duration
 )
 
 var crackOtelName = "github.com/cerberauth/jwtop/cmd/crack"
@@ -118,6 +123,17 @@ Use only against systems you own or have explicit written permission to test.`,
 			}
 		}
 
+		var signingKey interface{}
+		if crackSigningKey != "" {
+			keyData, err := readKeyData(crackSigningKey)
+			if err != nil {
+				return telemetryx.Reason(fmt.Errorf("reading signing key: %w", err), "signing-key-read-error")
+			}
+			if signingKey, err = jwt.LoadPrivateKeyFromPEM(keyData); err != nil {
+				return telemetryx.Reason(fmt.Errorf("parsing signing key: %w", err), "signing-key-read-error")
+			}
+		}
+
 		candidates := exploit.WeakSecrets()
 		if crackWordlist != "" {
 			fromFile, err := exploit.SecretsFromFile(crackWordlist)
@@ -180,6 +196,10 @@ Use only against systems you own or have explicit written permission to test.`,
 			X5UServerAddr:      crackX5UServerAddr,
 			Fuzz:               crackFuzz,
 			FuzzMaxStringLen:   crackFuzzMaxStrLen,
+			OtherAudienceToken: crackOtherAudToken,
+			OtherIssuerToken:   crackOtherIssToken,
+			SigningKey:         signingKey,
+			MaxTokenLifetime:   crackMaxLifetime,
 			TokenLocation: crack.TokenLocation{
 				In:     crackTokenIn,
 				Name:   crackTokenName,
@@ -232,6 +252,10 @@ func init() {
 	crackCmd.Flags().StringVar(&crackX5UServerAddr, "x5u-server-addr", "", "Bind address for a local certificate server used by the x5uinjection check, e.g. \"0.0.0.0:8090\" (must be reachable by the target; check is skipped if unset)")
 	crackCmd.Flags().BoolVar(&crackFuzz, "fuzz", false, "Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline (requires --url)")
 	crackCmd.Flags().IntVar(&crackFuzzMaxStrLen, "fuzz-max-string-len", jwtfuzz.DefaultMaxStringLen, "Length of the oversized-string payload used by --fuzz")
+	crackCmd.Flags().StringVar(&crackOtherAudToken, "other-audience-token", "", "Validly signed token issued for another audience, sent by the audience_not_validated check")
+	crackCmd.Flags().StringVar(&crackOtherIssToken, "other-issuer-token", "", "Validly signed token issued by another issuer of the same identity provider, sent by the issuer_not_validated check")
+	crackCmd.Flags().StringVar(&crackSigningKey, "signing-key", "", "Path or URL to the PEM private key matching the token, used to re-sign tokens with modified claims (HMAC tokens use the cracked secret)")
+	crackCmd.Flags().DurationVar(&crackMaxLifetime, "max-token-lifetime", checkbase.DefaultMaxTokenLifetime, "Token lifetime above which the long_lifetime check reports the token")
 	registerExternalToolFlags(crackCmd, &crackExternalTools)
 	cobrareportx.RegisterFormatFlags(crackCmd)
 	cobrareportx.RegisterTransportFlags(crackCmd)

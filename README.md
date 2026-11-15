@@ -377,6 +377,10 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 | `--crack-timeout` | Max time to let `john`/`hashcat` run before stopping them (default `5m`) |
 | `--fuzz` | Enable claim-mutation fuzzing (type confusion, oversized strings, special characters, null) and flag responses that diverge from the baseline — requires `--url` |
 | `--fuzz-max-string-len` | Length of the oversized-string payload used by `--fuzz` (default `10000`) |
+| `--other-audience-token` | Validly signed token issued for another audience, sent by `jwt.audience_not_validated` |
+| `--other-issuer-token` | Validly signed token issued by another issuer of the same identity provider, sent by `jwt.issuer_not_validated` |
+| `--signing-key` | Path or URL to the PEM private key matching the token, used to re-sign tokens with modified claims (HMAC tokens use the cracked secret) |
+| `--max-token-lifetime` | Token lifetime above which `jwt.long_lifetime` reports the token (default `24h`) |
 
 `--john`/`--hashcat` are entirely optional and off by default; when either tool is detected on `PATH` but not enabled, jwtop prints a one-line suggestion to stderr. See [External cracking tools](#external-cracking-tools-john--hashcat) below.
 
@@ -390,6 +394,8 @@ jwtop crack <token> --url <url> --fuzz [--fuzz-max-string-len <n>]
 | `weaksecret` | Cracks the HMAC signing secret via dictionary attack |
 
 **Online-only checks** (require `--url`): `algnone` (×4 casing variants), `hmacconfusion` (requires `--key`), `psychicsig` (ECDSA-only), `kidinjection` (SQL injection via `--kid-sql-table`, path traversal ×9 path variants — narrow to one with `--kid-path`), `jwkinjection` (RSA/ECDSA-only, CVE-2018-0114), `jkuinjection` (RSA/ECDSA-only, requires `--jku-server-addr`), `x5cinjection` (RSA/ECDSA-only), `x5uinjection` (RSA/ECDSA-only, requires `--x5u-server-addr`), `fuzz` (claim-mutation fuzzing, opt-in via `--fuzz`).
+
+**Claim validation checks**: `jwt.missing_expiry` and `jwt.long_lifetime` (offline, threshold `--max-token-lifetime`), `jwt.expired_accepted` (online, the given token is expired), `jwt.audience_not_validated` and `jwt.issuer_not_validated` (online, token from `--other-audience-token` / `--other-issuer-token`, or the token re-signed with another `aud` / `iss`), `jwt.claim_removal` (online, `iss`, `aud`, `sub`, `exp`, `nbf`, `iat` removed one at a time and together) and `jwt.scope_not_validated` (online, scope and role claims removed). Checks that re-sign need the cracked HMAC secret or `--signing-key`, and are skipped otherwise.
 
 **`fuzz`** — off by default, enabled with `--fuzz`. Complements the fixed checks above by mutating every claim value (type confusion, an oversized string, special characters, an explicit null) and comparing each mutated response against a reference response captured from the original token. It flags a mutation when the response diverges: a `5xx` status, a leaked stack trace/exception, or a body length far from the reference's — signs of a parsing bug the fixed checks don't target. `--fuzz-max-string-len` controls the oversized-string payload length.
 

@@ -1,0 +1,12 @@
+id: "jwt.missing_expiry"
+name: "Missing Expiry"
+description: "Tests if the token has no exp claim, so it never expires once issued."
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-token-lifetime"
+tags:
+  - claims
+depends_on: []
+cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:P/PR:N/UI:N/VC:L/VI:L/VA:N/SC:N/SI:N/SA:N"
+cvss_score: 6.3
+cwe_id: "CWE-613"
+capec_id: "CAPEC-60"
+owasp: "API2:2023"
