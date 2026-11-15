@@ -856,6 +856,7 @@ pubKey, err  := jwt.LoadPublicKeyFromPEM(pemBytes)
 privKey, err := jwt.LoadPrivateKeyFromPEM(pemBytes)
 key, err     := jwt.GenerateKey(jwt.SigningMethodRS256)
 keyfunc, err := jwt.FetchJWKS("https://example.com/.well-known/jwks.json")
+keyfunc, err = jwt.FetchJWKSWithClient(ctx, jwksURL, httpClient)
 method, err  := jwt.ParseSigningMethod("ES256")
 ok           := jwt.IsJWT(tokenString)
 ```
