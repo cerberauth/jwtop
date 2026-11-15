@@ -3,7 +3,7 @@ module github.com/cerberauth/jwtop
 go 1.27.0
 
 require (
-	github.com/cerberauth/harnessx v0.5.0
+	github.com/cerberauth/harnessx v0.5.1-0.20261115193329-811e1dec1662
 	github.com/cerberauth/x v0.0.0-20261108232819-0070b4a32173
 	github.com/getargvio/argvio-go v0.6.0
 	github.com/golang-jwt/jwt/v5 v5.3.1

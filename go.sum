@@ -4,6 +4,8 @@ github.com/cenkalti/backoff/v5 v5.0.3 h1:ZN+IMa753KfX5hd8vVaMixjnqRZ3y8CuJKRKj1x
 github.com/cenkalti/backoff/v5 v5.0.3/go.mod h1:rkhZdG3JZukswDf7f0cwqPNk4K0sa+F97BxZthm/crw=
 github.com/cerberauth/harnessx v0.5.0 h1:9XTxMkyLAnMQBkrxB4ZZ9O4Zbf/3u6FYI3TzzVIDvSw=
 github.com/cerberauth/harnessx v0.5.0/go.mod h1:uXaZUv/Ic5PMsxHb2KzMFaTQjWTDftF5r0yYS6Ha22U=
+github.com/cerberauth/harnessx v0.5.1-0.20261115193329-811e1dec1662 h1:eMPuJC9DTf6bYnF9Hy2L45sS422Poz5Sf3ReqdFyry0=
+github.com/cerberauth/harnessx v0.5.1-0.20261115193329-811e1dec1662/go.mod h1:uXaZUv/Ic5PMsxHb2KzMFaTQjWTDftF5r0yYS6Ha22U=
 github.com/cerberauth/reportx v0.4.0 h1:Nb+NsC2dvFEj4mUBEVN9jkD9i7++CMpMTqxYBmBbr/I=
 github.com/cerberauth/reportx v0.4.0/go.mod h1:w51Q19ZWF7OJdDmBoSwBVf2DfdcE8t883fEsKwcd0+o=
 github.com/cerberauth/x v0.0.0-20261108232819-0070b4a32173 h1:Gy8q2r+13DVhSZMnvopTCr0gVGJHyRoMnH0Pn1boWY0=
