@@ -22,6 +22,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/cerberauth/jwtop/jwt/crack"
+	algnone "github.com/cerberauth/jwtop/jwt/crack/checks/alg_none"
+	claimremoval "github.com/cerberauth/jwtop/jwt/crack/checks/claim_removal"
 	"github.com/cerberauth/jwtop/jwt/exploit"
 )
 
@@ -1000,5 +1002,76 @@ func TestCheckDefs_IncludesBaselineIndependentChecks(t *testing.T) {
 
 	for id, d := range defs {
 		assert.NotEmpty(t, d.Name, "check %q should have a Name populated from its Check definition", id)
+	}
+}
+
+type recordingReporter struct {
+	mu      sync.Mutex
+	results map[harnessx.CheckID]harnessx.Result
+}
+
+func (r *recordingReporter) OnScanStart(harnessx.Target, int)                                 {}
+func (r *recordingReporter) OnCheckStart(harnessx.Check, harnessx.Target, *harnessx.Resource) {}
+func (r *recordingReporter) OnScanComplete(harnessx.ScanSummary)                              {}
+func (r *recordingReporter) OnCheckComplete(result harnessx.Result) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.results[result.CheckID] = result
+}
+
+func TestProbeAll_Reporters_ReceiveVariantCheckResult(t *testing.T) {
+	token := makeHS256Token(t, "secret")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		tokenString := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if parsed, _, err := jwtlib.NewParser().ParseUnverified(tokenString, jwtlib.MapClaims{}); err == nil && strings.EqualFold(parsed.Method.Alg(), "none") {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		if _, err := jwtlib.Parse(tokenString, func(*jwtlib.Token) (interface{}, error) { return []byte("secret"), nil }); err != nil {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	rec := &recordingReporter{results: map[harnessx.CheckID]harnessx.Result{}}
+	_, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:        srv.URL,
+		Candidates: []string{"secret"},
+		Reporters:  []harnessx.Reporter{rec},
+	})
+	require.NoError(t, err)
+
+	for _, id := range []harnessx.CheckID{algnone.Check.ID, claimremoval.Check.ID} {
+		pr, ok := harnessx.DataAs[crack.ProbeResult](rec.results[id])
+		require.True(t, ok, id)
+		assert.True(t, pr.Vulnerable, id)
+	}
+}
+
+func TestProbeAll_NewRequest_UsedByEveryProbe(t *testing.T) {
+	token, err := jwtlib.NewWithClaims(jwtlib.SigningMethodHS256, jwtlib.MapClaims{"sub": "user1", "exp": time.Now().Add(time.Hour).Unix()}).SignedString([]byte("secret"))
+	require.NoError(t, err)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			w.WriteHeader(http.StatusMethodNotAllowed)
+			return
+		}
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer srv.Close()
+
+	results, _, err := crack.ProbeAll(context.Background(), token, crack.ProbeOptions{
+		URL:            srv.URL,
+		ExpectedStatus: http.StatusUnauthorized,
+		Fuzz:           true,
+		NewRequest: func(ctx context.Context, _ string) (*http.Request, error) {
+			return http.NewRequestWithContext(ctx, http.MethodPost, srv.URL, strings.NewReader(`{}`))
+		},
+	})
+	require.NoError(t, err)
+	for _, r := range results {
+		assert.False(t, r.Vulnerable, r.Name)
 	}
 }

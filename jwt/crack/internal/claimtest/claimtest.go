@@ -25,13 +25,22 @@ func Sign(t *testing.T, claims jwtlib.MapClaims) string {
 
 func Server(t *testing.T, accept func(claims jwtlib.MapClaims) bool) string {
 	t.Helper()
+	return ServerRejecting(t, accept, http.StatusUnauthorized, http.StatusUnauthorized)
+}
+
+func ServerRejecting(t *testing.T, accept func(claims jwtlib.MapClaims) bool, invalidStatus int, rejectedStatus int) string {
+	t.Helper()
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		claims := jwtlib.MapClaims{}
 		_, err := jwtlib.ParseWithClaims(strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer "), claims, func(*jwtlib.Token) (interface{}, error) {
 			return Secret, nil
 		}, jwtlib.WithoutClaimsValidation())
-		if err != nil || !accept(claims) {
-			w.WriteHeader(http.StatusUnauthorized)
+		if err != nil {
+			w.WriteHeader(invalidStatus)
+			return
+		}
+		if !accept(claims) {
+			w.WriteHeader(rejectedStatus)
 			return
 		}
 		w.WriteHeader(http.StatusOK)

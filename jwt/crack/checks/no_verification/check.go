@@ -21,7 +21,7 @@ var Check = checkdef.NewCheck(Def,
 		pr := checkbase.ProbeResult{
 			Payload:    pctx.InvalidToken,
 			Status:     baseline.StatusCode,
-			Vulnerable: baseline.StatusCode < 400,
+			Vulnerable: baseline.StatusCode < 300,
 		}
 		return harnessx.DataResult(pr), nil
 	},

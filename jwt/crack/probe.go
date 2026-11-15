@@ -36,6 +36,19 @@ import (
 
 type ProbeResult = checkbase.ProbeResult
 
+type variantResultReporter struct {
+	harnessx.Reporter
+}
+
+func (r variantResultReporter) OnCheckComplete(result harnessx.Result) {
+	if result.Data == nil {
+		if pr, ok := checkbase.ResolveVariantResult(result.Attempts); ok {
+			result.Data = pr
+		}
+	}
+	r.Reporter.OnCheckComplete(result)
+}
+
 type CheckDef = checkbase.CheckDef
 
 // TokenLocation describes where the exploited JWT is placed in probe
@@ -229,7 +242,11 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 	} else {
 		var engineOpts []harnessx.Option
 		if len(opts.Reporters) > 0 {
-			engineOpts = append(engineOpts, harnessx.WithReporters(opts.Reporters...))
+			reporters := make([]harnessx.Reporter, len(opts.Reporters))
+			for i, r := range opts.Reporters {
+				reporters[i] = variantResultReporter{r}
+			}
+			engineOpts = append(engineOpts, harnessx.WithReporters(reporters...))
 		}
 		engine := harnessx.New(engineOpts...)
 		if regErr := engine.Register(checks...); regErr != nil {

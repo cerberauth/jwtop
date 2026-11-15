@@ -1,6 +1,7 @@
 package scopenotvalidated_test
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/cerberauth/jwtop/jwt/crack/checkbase"
@@ -16,19 +17,21 @@ func TestCheck(t *testing.T) {
 	token := claimtest.Sign(t, jwtlib.MapClaims{"sub": "1", "scope": "read", "roles": []string{"admin"}})
 
 	testCases := []struct {
-		name       string
-		accept     func(jwtlib.MapClaims) bool
-		token      string
-		vulnerable bool
-		skipped    bool
+		name           string
+		accept         func(jwtlib.MapClaims) bool
+		rejectedStatus int
+		token          string
+		vulnerable     bool
+		skipped        bool
 	}{
-		{"scope validated", requiresScope, token, false, false},
-		{"scope ignored", ignoresScope, token, true, false},
-		{"no scope claim", ignoresScope, claimtest.Sign(t, jwtlib.MapClaims{"sub": "1"}), false, true},
+		{"scope validated", requiresScope, http.StatusUnauthorized, token, false, false},
+		{"scope validated with forbidden", requiresScope, http.StatusForbidden, token, false, false},
+		{"scope ignored", ignoresScope, http.StatusUnauthorized, token, true, false},
+		{"no scope claim", ignoresScope, http.StatusUnauthorized, claimtest.Sign(t, jwtlib.MapClaims{"sub": "1"}), false, true},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			pr, reason := claimtest.Run(t, scopenotvalidated.Check, claimtest.Server(t, tc.accept), &checkbase.ProbeCtx{TokenString: tc.token, CrackedHMACSecret: string(claimtest.Secret)})
+			pr, reason := claimtest.Run(t, scopenotvalidated.Check, claimtest.ServerRejecting(t, tc.accept, http.StatusUnauthorized, tc.rejectedStatus), &checkbase.ProbeCtx{TokenString: tc.token, CrackedHMACSecret: string(claimtest.Secret)})
 
 			assert.Equal(t, tc.skipped, reason != "", reason)
 			assert.Equal(t, tc.vulnerable, pr.Vulnerable)
