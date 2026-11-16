@@ -1,10 +1,10 @@
-id: "no_verification"
+id: "jwt.no_verification"
 name: "No Verification"
 description: "Tests if the server accepts tokens without verifying the signature."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-signature-not-verified"
 tags: []
 depends_on:
-  - baseline
+  - jwt.baseline
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

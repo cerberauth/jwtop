@@ -1,11 +1,11 @@
-id: "blanksecret"
+id: "jwt.blank_secret"
 name: "Blank Secret"
 description: "Tests if the server accepts tokens signed with a blank/empty HMAC secret."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-blank-secret"
 tags:
   - hmac
 depends_on:
-  - baseline
+  - jwt.baseline
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

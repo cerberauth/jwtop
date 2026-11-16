@@ -1,4 +1,4 @@
-id: "secret"
+id: "jwt.weak_secret"
 name: "Weak Secret"
 description: "Tests if the server accepts tokens signed with a commonly used weak secret."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-weak-secret"
@@ -6,8 +6,8 @@ tags:
   - hmac
   - brute-force
 depends_on:
-  - baseline
-  - blanksecret
+  - jwt.baseline
+  - jwt.blank_secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

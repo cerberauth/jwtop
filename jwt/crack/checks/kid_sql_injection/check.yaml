@@ -1,12 +1,12 @@
-id: "kidinjection (sql)"
+id: "jwt.kid_sql_injection"
 name: "KID SQL Injection"
 description: "Tests if the server is vulnerable to SQL injection via the kid (key ID) header."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-kid-injection"
 tags:
   - injection
 depends_on:
-  - baseline
-  - secret
+  - jwt.baseline
+  - jwt.weak_secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

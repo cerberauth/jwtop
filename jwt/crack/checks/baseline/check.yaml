@@ -1,4 +1,5 @@
-id: "baseline"
+id: "jwt.baseline"
+internal: true
 name: "Baseline"
 description: "Sends the original token to establish a baseline HTTP status code."
 link: ""

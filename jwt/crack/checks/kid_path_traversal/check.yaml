@@ -1,12 +1,12 @@
-id: "kidinjection (path)"
+id: "jwt.kid_path_traversal"
 name: "KID Path Traversal"
 description: "Tests if the server is vulnerable to path traversal via the kid (key ID) header."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-kid-injection"
 tags:
   - injection
 depends_on:
-  - baseline
-  - blanksecret
+  - jwt.baseline
+  - jwt.blank_secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

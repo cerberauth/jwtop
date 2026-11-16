@@ -11,7 +11,7 @@ import (
 	"github.com/cerberauth/x/reportx/harnessreport"
 )
 
-const CheckIDBaseline harnessx.CheckID = "baseline"
+const CheckIDBaseline harnessx.CheckID = "jwt.baseline"
 
 const (
 	TokenLocationHeader = probe.CredentialLocationHeader
