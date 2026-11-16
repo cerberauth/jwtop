@@ -1,6 +1,7 @@
 package jwt_test
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -11,6 +12,7 @@ import (
 	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/cerberauth/jwtop/jwt"
@@ -301,4 +303,53 @@ func TestFetchJWKS_Errors(t *testing.T) {
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "decoding EC y coordinate")
 	})
+}
+
+type recordingTransport struct {
+	requests int
+}
+
+func (rt *recordingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	rt.requests++
+	return http.DefaultTransport.RoundTrip(req)
+}
+
+func TestFetchJWKSWithClient_UsesCallerClient(t *testing.T) {
+	rsaPriv, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewEncoder(w).Encode(jwksData{Keys: []jwkData{rsaToJWK(&rsaPriv.PublicKey, "rsa-1", "RS256")}})
+	}))
+	defer server.Close()
+
+	transport := &recordingTransport{}
+	keyFunc, err := jwt.FetchJWKSWithClient(context.Background(), server.URL, &http.Client{Transport: transport})
+	require.NoError(t, err)
+	assert.Equal(t, 1, transport.requests)
+
+	key, err := keyFunc(&jwtlib.Token{Header: map[string]interface{}{"kid": "rsa-1", "alg": "RS256"}})
+	require.NoError(t, err)
+	assert.Equal(t, rsaPriv.PublicKey.N, key.(*rsa.PublicKey).N)
+}
+
+func TestFetchJWKSWithClient_CanceledContext(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprint(w, `{"keys":[]}`)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := jwt.FetchJWKSWithClient(ctx, server.URL, nil)
+	assert.ErrorIs(t, err, context.Canceled)
+}
+
+func TestFetchJWKSWithClient_OversizedBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = fmt.Fprint(w, `{"keys":[{"kty":"RSA","kid":"`+strings.Repeat("a", 2<<20)+`"}]}`)
+	}))
+	defer server.Close()
+
+	_, err := jwt.FetchJWKSWithClient(context.Background(), server.URL, nil)
+	assert.ErrorContains(t, err, "decoding JWKS response")
 }

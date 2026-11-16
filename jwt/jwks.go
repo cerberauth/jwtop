@@ -1,6 +1,7 @@
 package jwt
 
 import (
+	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -8,8 +9,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"net/http"
+	"time"
 
 	jwtlib "github.com/golang-jwt/jwt/v5"
 )
@@ -30,12 +33,31 @@ type jwksResponse struct {
 	Keys []jwk `json:"keys"`
 }
 
+const maxJWKSBodySize = 1 << 20
+
+var defaultJWKSClient = &http.Client{Timeout: 10 * time.Second}
+
 // FetchJWKS retrieves a JWKS from a remote URI and returns a Keyfunc that
 // selects the matching key by kid header, falling back to alg-based matching
 // when no kid is present. Supported key types: RSA (kty=RSA) and EC (kty=EC).
 // The URI is passed without modification; callers should use HTTPS in production.
 func FetchJWKS(uri string) (jwtlib.Keyfunc, error) {
-	resp, err := http.Get(uri) //nolint:gosec // URI comes from user-controlled config
+	return FetchJWKSWithClient(context.Background(), uri, nil)
+}
+
+// FetchJWKSWithClient is FetchJWKS with the caller's context and HTTP client,
+// so its proxy, TLS settings, timeout and rate limiting apply. A nil client
+// uses a default client with a 10 second timeout.
+func FetchJWKSWithClient(ctx context.Context, uri string, client *http.Client) (jwtlib.Keyfunc, error) {
+	if client == nil {
+		client = defaultJWKSClient
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil)
+	if err != nil {
+		return nil, fmt.Errorf("fetching JWKS from %s: %w", uri, err)
+	}
+	req.Header.Set("Accept", "application/json")
+	resp, err := client.Do(req) //nolint:gosec // URI comes from user-controlled config
 	if err != nil {
 		return nil, fmt.Errorf("fetching JWKS from %s: %w", uri, err)
 	}
@@ -46,7 +68,7 @@ func FetchJWKS(uri string) (jwtlib.Keyfunc, error) {
 	}
 
 	var jwks jwksResponse
-	if err := json.NewDecoder(resp.Body).Decode(&jwks); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, maxJWKSBodySize)).Decode(&jwks); err != nil {
 		return nil, fmt.Errorf("decoding JWKS response: %w", err)
 	}
 
