@@ -70,6 +70,12 @@ To test for this vulnerability:
 3. Send it to your original project's API.
 4. If the API accepts the request, it is vulnerable to cross-service relay attacks.
 
+The `jwt.audience_not_validated` check of the `crack` command automates this with the second token, or re-signs the token with another `aud` when the signing key is known:
+
+```bash
+jwtop crack [token] --url [url] --other-audience-token [token-for-another-audience]
+```
+
 ## What is the impact?
 
 An attacker can impersonate any user who has an account with the shared identity provider. This leads to full account takeover and unauthorized access.

@@ -68,6 +68,12 @@ Pour tester cette vulnérabilité :
 3. Envoyez-le à l'API de votre projet original.
 4. Si l'API accepte la requête, elle est vulnérable aux attaques par relais inter-services.
 
+La vérification `jwt.audience_not_validated` de la commande `crack` automatise ce test avec le second token, ou re-signe le token avec un autre `aud` quand la clé de signature est connue :
+
+```bash
+jwtop crack [token] --url [url] --other-audience-token [token-pour-une-autre-audience]
+```
+
 ## Quel est l'impact ?
 
 Un attaquant peut usurper l'identité de n'importe quel utilisateur possédant un compte chez le fournisseur d'identité partagé. Cela mène à une prise de contrôle complète de compte et à un accès non autorisé.

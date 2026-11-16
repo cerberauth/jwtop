@@ -91,7 +91,11 @@ type ProbeCtx struct {
 	// body, or one that needs extra headers — today every probe goes
 	// through probe.NewCredentialRequest, a plain GET carrying only the
 	// token. Left nil, behavior is unchanged.
-	NewRequest func(ctx context.Context, token string) (*http.Request, error)
+	NewRequest         func(ctx context.Context, token string) (*http.Request, error)
+	OtherAudienceToken string
+	OtherIssuerToken   string
+	SigningKey         interface{}
+	MaxTokenLifetime   time.Duration
 }
 
 // ExternalToolOptions controls whether the weak-secret check falls back to
