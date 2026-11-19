@@ -9,7 +9,7 @@ depends_on:
   - baseline
   - secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:L/SC:L/SI:N/SA:N"
-cvss_score: 5.4
+cvss_score: 6.9
 cwe_id: "CWE-20"
 capec_id: "CAPEC-28"
 owasp: "API8:2023"
