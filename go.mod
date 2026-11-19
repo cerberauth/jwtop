@@ -4,7 +4,7 @@ go 1.27.0
 
 require (
 	github.com/cerberauth/harnessx v0.5.1-0.20261115193329-811e1dec1662
-	github.com/cerberauth/x v0.0.0-20261108232819-0070b4a32173
+	github.com/cerberauth/x v0.0.0-20261115155959-c025fc3e303d
 	github.com/getargvio/argvio-go v0.6.0
 	github.com/golang-jwt/jwt/v5 v5.3.1
 	github.com/iancoleman/orderedmap v0.3.0
@@ -18,7 +18,7 @@ require (
 require (
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/cenkalti/backoff/v5 v5.0.3 // indirect
-	github.com/cerberauth/reportx v0.4.0 // indirect
+	github.com/cerberauth/reportx v0.4.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
