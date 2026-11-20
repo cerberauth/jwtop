@@ -89,14 +89,22 @@ type ProbeOptions struct {
 	MaxTokenLifetime   time.Duration
 }
 
-// buildChecks returns the full set of registered checks along with a
-// per-check metadata map (name plus CVSS/CWE/OWASP scoring) keyed by
-// CheckID, since harnessx.Check itself carries no scoring metadata.
 // BuildChecks returns the full jwtop JWT check registry (baseline + every
 // crack check) and their metadata, in dependency order. Exported so callers
 // embedding jwtop's checks in their own harnessx.Engine (rather than going
 // through ProbeAll) build the exact same check list ProbeAll uses.
+//
+// The baseline stays visible here: ProbeAll and its reporters read it. Use
+// Checks to embed the pack.
 func BuildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
+	checks, defs := buildChecks()
+	for i := range checks {
+		checks[i].Internal = false
+	}
+	return checks, defs
+}
+
+func buildChecks() ([]harnessx.Check, map[harnessx.CheckID]CheckDef) {
 	checks := []harnessx.Check{
 		baseline.Check, noverification.Check,
 		algnone.Check,
@@ -161,9 +169,11 @@ func CheckDefs() map[harnessx.CheckID]CheckDef {
 	return defs
 }
 
-func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
+// NewProbeCtx builds the pack context every jwtop check reads from
+// Target.Data, for the JWT tokenString.
+func NewProbeCtx(tokenString string, opts ProbeOptions) (*checkbase.ProbeCtx, error) {
 	if err := opts.TokenLocation.Validate(); err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 	offline := opts.URL == ""
 	p := opts.Probe
@@ -174,7 +184,7 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		}
 		p = probe.New(probeOpts...)
 	}
-	pctx := &checkbase.ProbeCtx{
+	return &checkbase.ProbeCtx{
 		TokenString: tokenString, Probe: p, PublicKeyPEM: opts.PublicKeyPEM,
 		Candidates: opts.Candidates, Workers: opts.Workers, ExpectedStatus: opts.ExpectedStatus,
 		Offline: offline, KidSQLTable: opts.KidSQLTable, KidSQLTables: opts.KidSQLTables, KidPath: opts.KidPath,
@@ -190,12 +200,30 @@ func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]Pro
 		OtherIssuerToken:   opts.OtherIssuerToken,
 		SigningKey:         opts.SigningKey,
 		MaxTokenLifetime:   opts.MaxTokenLifetime,
+	}, nil
+}
+
+// Checks returns the jwtop check pack: every check with a `jwt.` ID, the
+// baseline marked internal and vulnerable probes reported as Observations, for
+// embedding in another harnessx engine with harnessx/embed. Each check reads a
+// *checkbase.ProbeCtx built by NewProbeCtx from Target.Data.
+func Checks() []harnessx.Check {
+	checks, _ := buildChecks()
+	for i, c := range checks {
+		checks[i] = checkbase.WithObservations(c)
+	}
+	return checks
+}
+
+func ProbeAll(ctx context.Context, tokenString string, opts ProbeOptions) ([]ProbeResult, int, error) {
+	pctx, err := NewProbeCtx(tokenString, opts)
+	if err != nil {
+		return nil, 0, err
 	}
 
 	checks, defs := BuildChecks()
 
 	var summary harnessx.ScanSummary
-	var err error
 	if opts.Engine != nil {
 		summary, err = opts.Engine.RunScenario(ctx, harnessx.Target{URL: opts.URL, Data: pctx}, harnessx.Scenario{Checks: checks})
 	} else {

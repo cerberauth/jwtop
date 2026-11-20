@@ -1,13 +1,13 @@
-id: "algnone"
+id: "jwt.alg_none"
 name: "Algorithm None"
 description: "Tests if the server accepts tokens with the algorithm set to 'none'."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-alg-none"
 tags:
   - algorithm
 depends_on:
-  - baseline
-  - no_verification
-  - nullsig
+  - jwt.baseline
+  - jwt.no_verification
+  - jwt.null_signature
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 9.3
 cwe_id: "CWE-345"

@@ -855,6 +855,20 @@ for _, r := range results {
 }
 ```
 
+#### Embedding the checks
+
+`crack.Checks()` is jwtop's [harnessx check pack](https://github.com/cerberauth/harnessx/blob/main/docs/guides/check-packs.mdx): `jwt.*` IDs, an internal `jwt.baseline`, findings reported as observations. Register it in another harnessx engine with `harnessx/embed`, building the pack context with `crack.NewProbeCtx`:
+
+```go
+checks, err := embed.Checks(crack.Checks(), embed.Options{
+    Scope:     harnessx.ScopePerResource,
+    DependsOn: []harnessx.CheckID{"api.discover"},
+    Context: func(ctx context.Context, _ harnessx.Target, res *harnessx.Resource) (any, error) {
+        return crack.NewProbeCtx(tokenFor(res), crack.ProbeOptions{URL: res.URL})
+    },
+})
+```
+
 ### Key utilities
 
 ```go

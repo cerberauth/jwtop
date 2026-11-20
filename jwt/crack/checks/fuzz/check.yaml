@@ -1,4 +1,4 @@
-id: "fuzz"
+id: "jwt.fuzz"
 name: "Claim Fuzzing"
 description: "Mutates each claim (type confusion, oversized strings, special characters, null) and flags responses that diverge from the baseline: 5xx status, a leaked stack trace, or a wildly different body length."
 link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-claim-fuzzing"
@@ -6,8 +6,8 @@ tags:
   - fuzzing
   - input-validation
 depends_on:
-  - baseline
-  - secret
+  - jwt.baseline
+  - jwt.weak_secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:N/UI:N/VC:N/VI:N/VA:L/SC:L/SI:N/SA:N"
 cvss_score: 6.9
 cwe_id: "CWE-20"

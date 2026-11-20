@@ -5,8 +5,8 @@ link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-token-cross-ser
 tags:
   - claims
 depends_on:
-  - baseline
-  - secret
+  - jwt.baseline
+  - jwt.weak_secret
 cvss_vector: "CVSS:4.0/AV:N/AC:L/AT:N/PR:L/UI:N/VC:H/VI:H/VA:N/SC:N/SI:N/SA:N"
 cvss_score: 8.6
 cwe_id: "CWE-287"
