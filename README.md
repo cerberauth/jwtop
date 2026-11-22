@@ -91,7 +91,7 @@ docker run --rm -v "$(pwd)":/data ghcr.io/cerberauth/jwtop \
   crack $TOKEN --url https://api.example.com/protected --wordlist /data/secrets.txt
 ```
 
-See the [Docker guide](./docs/docker.mdx) for Compose usage, network joining to probe a co-located server, and building the dev image from source.
+See the [Docker guide](./docs/en/deployment/docker.mdx) for Compose usage, network joining to probe a co-located server, and building the dev image from source.
 
 > `--john`/`--hashcat` (see [External cracking tools](#external-cracking-tools-john--hashcat)) need the respective binaries on the host and don't work inside this distroless image — run jwtop outside Docker, or build a custom image with them installed, to use those flags.
 

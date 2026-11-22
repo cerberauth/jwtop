@@ -1,7 +1,7 @@
 id: "jwt.psychic_signature"
 name: "Psychic Signature"
 description: "Tests if the server accepts ECDSA tokens signed with an all-zero (r=0, s=0) signature, per CVE-2022-21449."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-psychic-signature"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/signature/jwt-psychic-signature"
 tags:
   - ecdsa
 depends_on:

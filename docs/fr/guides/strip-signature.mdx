@@ -1,6 +1,8 @@
 ---
-title: Retirer ou supprimer la signature d'un token
+title: "Retirer la signature d'un token"
 description: Produisez un token non signé ou alg=none pour tester la logique de validation des signatures.
+sidebar:
+  order: 6
 ---
 
 Certains tests de sécurité nécessitent des tokens sans signature valide — par exemple, vérifier que votre serveur rejette les tokens non signés, ou tester le comportement lorsque `alg` vaut `"none"`. `jwtop sign --alg none` couvre ce cas.

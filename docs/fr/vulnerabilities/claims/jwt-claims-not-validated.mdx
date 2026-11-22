@@ -1,0 +1,56 @@
+---
+title: Claims JWT non validés
+description: Une vulnérabilité où un serveur accepte un JWT correctement signé dont l'émetteur, l'audience, les claims enregistrés ou de scope ont été modifiés ou supprimés.
+sidebar:
+  order: 3
+---
+
+<table>
+  <tr>
+    <th>Gravité</th>
+    <td>Élevée</td>
+  </tr>
+  <tr>
+    <th>Vérifications</th>
+    <td><code>jwt.issuer_not_validated</code>, <code>jwt.claim_removal</code>, <code>jwt.scope_not_validated</code></td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td><a href="https://cwe.mitre.org/data/definitions/287.html">CWE-287: Improper Authentication</a>, <a href="https://cwe.mitre.org/data/definitions/285.html">CWE-285: Improper Authorization</a></td>
+  </tr>
+  <tr>
+    <th>Catégorie OWASP</th>
+    <td><a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a></td>
+  </tr>
+</table>
+
+Une signature valide prouve seulement qui a signé le token. Le serveur doit aussi vérifier que le token a été émis par l'émetteur attendu (`iss`), pour cette API (`aud`), pour un sujet (`sub`), qu'il est dans sa période de validité (`exp`, `nbf`, `iat`) et qu'il accorde le scope ou le rôle requis par l'opération.
+
+## Vérifications
+
+| Vérification | Ce qui est envoyé | Prérequis |
+|--------------|-------------------|-----------|
+| `jwt.issuer_not_validated` | Le token fourni avec `--other-issuer-token`, ou le token re-signé avec un autre `iss` | Le token d'un autre émetteur, ou la clé de signature |
+| `jwt.claim_removal` | Le token re-signé sans `iss`, `aud`, `sub`, `exp`, `nbf` et `iat`, un par un puis tous ensemble | La clé de signature |
+| `jwt.scope_not_validated` | Le token re-signé sans ses claims `scope`, `scp`, `roles`, `role`, `groups`, `permissions` et `authorities` | La clé de signature |
+
+Le token pour une autre audience est couvert par [`jwt.audience_not_validated`](./jwt-cross-service-relay-attack/).
+
+La clé de signature est le secret HMAC cassé par la vérification de secret faible (ajoutez-le avec `--secret` si vous le connaissez), ou la clé privée fournie avec `--signing-key`. Sans elle, ces vérifications sont ignorées avec une raison.
+
+## Comment tester ?
+
+```bash
+jwtop crack [token] --url [url] --secret [secret-connu]
+jwtop crack [token] --url [url] --signing-key private.pem --other-issuer-token [token-d-un-autre-emetteur]
+```
+
+## Quel est l'impact ?
+
+Un serveur qui omet ces vérifications accepte des tokens émis pour un autre tenant, realm ou API du même fournisseur d'identité, des tokens sans sujet ni expiration, et des tokens privés de leurs permissions, ce qui mène à l'usurpation d'identité et à l'élévation de privilèges.
+
+## Comment corriger ?
+
+- Configurez la bibliothèque JWT pour exiger et vérifier `iss`, `aud`, `exp` et `sub`, avec les valeurs d'émetteur et d'audience attendues.
+- Rejetez les tokens auxquels il manque un claim requis au lieu de le traiter comme optionnel.
+- Autorisez chaque opération selon les claims de scope ou de rôle, et refusez quand ils sont absents.

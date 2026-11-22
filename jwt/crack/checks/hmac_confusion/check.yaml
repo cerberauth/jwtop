@@ -1,7 +1,7 @@
 id: "jwt.hmac_confusion"
 name: "HMAC Confusion"
 description: "Tests if the server accepts an RSA/ECDSA token re-signed as HMAC using the public key as the secret."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-hmac-confusion"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/signature/jwt-algorithm-confusion"
 tags:
   - asymmetric
   - hmac

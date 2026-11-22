@@ -1,0 +1,14 @@
+---
+title: Claims
+description: Checks for JWT claim validation and lifetime flaws.
+sidebar:
+  order: 1
+---
+
+The scans in this group detect claim validation and lifetime flaws.
+
+- [JWT Claim Fuzzing](./jwt-claim-fuzzing) — A vulnerability where a server crashes, leaks a stack trace, or otherwise behaves erratically when a JWT claim contains an unexpected type, an oversized string, special characters, or a null value.
+- [JWT Claims Not Validated](./jwt-claims-not-validated) — A vulnerability where a server accepts a correctly signed JWT whose issuer, audience, registered or scope claims were changed or removed.
+- [JWT Timestamp Tampering](./jwt-timestamp-tampering) — A vulnerability where a server accepts a re-signed JWT whose exp, iat, or nbf claims have been tampered with, because claims validation is disabled or incomplete once the signature checks out.
+- [JWT Expired](./jwt-expired) — A vulnerability where a JWT never expires, lives too long, or is still accepted after its expiry.
+- [JWT Cross Service Relay Attack](./jwt-cross-service-relay-attack) — A vulnerability arises when a token is forged by the same service but doesn't verify the issuer or audience.

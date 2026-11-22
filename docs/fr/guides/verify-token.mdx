@@ -1,6 +1,8 @@
 ---
 title: Vérifier un token
 description: Validez la signature d'un JWT avec un secret HMAC, un fichier de clé PEM ou un endpoint JWKS.
+sidebar:
+  order: 2
 ---
 
 Utilisez `jwtop verify` pour confirmer que la signature d'un token est valide et que ses claims standard (`exp`, `nbf`, `iss`, etc.) passent la validation. La commande retourne `0` en cas de succès et `1` en cas d'échec.

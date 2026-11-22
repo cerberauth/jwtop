@@ -1,7 +1,7 @@
 id: "jwt.jku_injection"
 name: "JKU Header Injection"
 description: "Tests if the server fetches the token's jku header URL and trusts whatever JWKS it returns, instead of validating jku against an allowlist of known key endpoints."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-jku-injection"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/header-injection/jwt-jku-injection"
 tags:
   - injection
   - asymmetric

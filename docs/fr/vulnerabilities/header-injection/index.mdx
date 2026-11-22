@@ -1,0 +1,14 @@
+---
+title: Injection d’en-têtes
+description: Vérifications des paramètres d’en-tête JWT qui font confiance à des clés contrôlées par un attaquant.
+sidebar:
+  order: 1
+---
+
+Les analyses de ce groupe détectent les paramètres d’en-tête de confiance qui permettent à un attaquant de fournir la clé de vérification.
+
+- [Injection d'en-tête JKU JWT](./jwt-jku-injection) — L'injection d'en-tête JKU JWT survient lorsqu'un serveur récupère l'URL de l'en-tête `jku` du token et fait confiance au JWKS renvoyé sans valider l'URL contre une liste d'autorisation, permettant à un attaquant de forger des tokens vérifiés avec sa propre clé hébergée.
+- [Injection d'en-tête JWK JWT](./jwt-jwk-injection) — L'injection d'en-tête JWK JWT (CVE-2018-0114) survient lorsqu'un serveur fait confiance à une clé publique embarquée directement dans le header `jwk` du token au lieu de valider contre un jeu de clés connu, permettant aux attaquants de forger des tokens signés avec leur propre clé.
+- [Injection d'en-tête JWT KID](./jwt-kid-injection) — L'injection d'en-tête JWT KID survient lorsque le paramètre d'en-tête `kid` (Key ID) est transmis sans désinfection à une requête de base de données ou une recherche sur le système de fichiers, permettant aux attaquants de forger des tokens de confiance.
+- [Injection d'en-tête X5C JWT](./jwt-x5c-injection) — La vulnérabilité d'injection d'en-tête X5C survient lorsqu'un serveur fait confiance à un certificat intégré directement dans l'en-tête `x5c` du token au lieu de le valider avec une AC épinglée ou un magasin de certificats, permettant aux attaquants de forger des tokens signés avec leur propre certificat auto-signé.
+- [Injection d'en-tête X5U JWT](./jwt-x5u-injection) — La vulnérabilité d'injection d'en-tête X5U survient lorsqu'un serveur récupère l'URL de l'en-tête `x5u` du token et fait confiance au certificat renvoyé, au lieu de le valider avec une AC épinglée ou un magasin de certificats, permettant aux attaquants de forger des tokens vérifiés avec leur propre certificat hébergé.

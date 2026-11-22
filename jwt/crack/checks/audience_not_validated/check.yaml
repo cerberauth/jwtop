@@ -1,7 +1,7 @@
 id: "jwt.audience_not_validated"
 name: "Audience Not Validated"
 description: "Tests if the server accepts a token issued for another audience: the token given for another audience, or the token under test re-signed with another aud claim."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-token-cross-service-relay-attack"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-cross-service-relay-attack"
 tags:
   - claims
 depends_on:

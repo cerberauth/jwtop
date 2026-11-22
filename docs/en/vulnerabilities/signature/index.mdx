@@ -1,0 +1,14 @@
+---
+title: Signature
+description: Checks for signature verification flaws in JWT validation.
+sidebar:
+  order: 1
+---
+
+The scans in this group detect signature verification flaws.
+
+- [JWT None Algorithm](./jwt-alg-none) — Accepting the "none" algorithm in a JSON Web Token (JWT) occurs when a JWT is signed with the "none" algorithm, it means there is no signature, making it easy for attackers to tamper with the token's content without detection.
+- [JWT Null Signature](./jwt-null-signature) — JWT Null Signature vulnerability occurs when a JSON Web Token (JWT) lacks a signature part, allowing attackers to manipulate the token's content.
+- [JWT Psychic Signature](./jwt-psychic-signature) — The "Psychic Signature" vulnerability (CVE-2022-21449) affects ECDSA verification implementations that fail to reject an all-zero (r=0, s=0) signature, allowing attackers to forge tokens for any message and any public key.
+- [JWT Signature Not Verified](./jwt-signature-not-verified) — A vulnerability where the server accepts JWTs without verifying their cryptographic signature, allowing attackers to forge arbitrary tokens.
+- [JWT Algorithm Confusion](./jwt-algorithm-confusion) — HMAC confusion (also known as Algorithm Confusion) is a critical JWT vulnerability where an attacker tricks a server into verifying an asymmetric token (like RS256) using a symmetric algorithm (like HS256).

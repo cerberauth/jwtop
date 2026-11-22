@@ -1,7 +1,7 @@
 id: "jwt.no_verification"
 name: "No Verification"
 description: "Tests if the server accepts tokens without verifying the signature."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-signature-not-verified"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/signature/jwt-signature-not-verified"
 tags: []
 depends_on:
   - jwt.baseline
