@@ -1,7 +1,7 @@
 id: "jwt.long_lifetime"
 name: "Long Token Lifetime"
 description: "Tests if the token lifetime (exp minus iat, or minus now without iat) is above the configured maximum."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-token-lifetime"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-expired"
 tags:
   - claims
 depends_on: []

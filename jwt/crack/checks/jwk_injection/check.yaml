@@ -1,7 +1,7 @@
 id: "jwt.jwk_injection"
 name: "JWK Header Injection"
 description: "Tests if the server trusts a self-signed JWK embedded in the token's jwk header instead of validating against a known keyset (CVE-2018-0114)."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-jwk-injection"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/header-injection/jwt-jwk-injection"
 tags:
   - injection
   - asymmetric

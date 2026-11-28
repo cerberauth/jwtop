@@ -1,6 +1,8 @@
 ---
 title: JWT Vulnerabilities
 description: Learn about common JWT vulnerabilities and how JWTop can help you identify and exploit them.
+sidebar:
+  order: 1
 ---
 
 import { Card, CardGrid, LinkCard } from '@/components/docs';
@@ -12,23 +14,23 @@ JWTop provides built-in tools to test for these vulnerabilities automatically or
 ## Common Vulnerabilities
 
 <CardGrid>
-  <LinkCard title="None Algorithm" description="Accepting tokens with no signature." href="./jwt-alg-none/" />
-  <LinkCard title="Blank Secret" description="Tokens signed with an empty HMAC secret." href="./jwt-blank-secret/" />
-  <LinkCard title="HMAC Confusion" description="Using a public key as an HMAC secret." href="./jwt-hmac-confusion/" />
-  <LinkCard title="KID Injection" description="Injecting payloads via the Key ID header." href="./jwt-kid-injection/" />
-  <LinkCard title="JWK Header Injection" description="Trusting a self-signed public key embedded in the token." href="./jwt-jwk-injection/" />
-  <LinkCard title="JKU Header Injection" description="Fetching and trusting a JWKS from an attacker-controlled URL." href="./jwt-jku-injection/" />
-  <LinkCard title="X5C Header Injection" description="Trusting a self-signed certificate embedded in the token." href="./jwt-x5c-injection/" />
-  <LinkCard title="X5U Header Injection" description="Fetching and trusting a certificate from an attacker-controlled URL." href="./jwt-x5u-injection/" />
-  <LinkCard title="Null Signature" description="Stripping the signature from the token." href="./jwt-null-signature/" />
-  <LinkCard title="Psychic Signature" description="ECDSA verifiers accepting an all-zero (r=0, s=0) signature." href="./jwt-psychic-signature/" />
-  <LinkCard title="Weak Secret" description="Brute-forcing common HMAC secrets." href="./jwt-weak-secret/" />
-  <LinkCard title="Signature Not Verified" description="Bypassing signature verification entirely." href="./jwt-signature-not-verified/" />
-  <LinkCard title="Cross Service Relay Attack" description="Relaying tokens from other projects." href="./jwt-token-cross-service-relay-attack/" />
-  <LinkCard title="Claim Fuzzing" description="Mutated claims (type confusion, oversized strings, special characters, null) crashing the server or leaking a stack trace." href="./jwt-claim-fuzzing/" />
-  <LinkCard title="Timestamp Tampering" description="Extending exp, backdating iat, or clearing nbf independent of signature validation." href="./jwt-timestamp-tampering/" />
-  <LinkCard title="Claims Not Validated" description="Accepting tokens from another issuer, without registered claims, or without scope." href="./jwt-claims-not-validated/" />
-  <LinkCard title="Token Lifetime" description="Tokens without expiry, with a long lifetime, or accepted once expired." href="./jwt-token-lifetime/" />
+  <LinkCard title="None Algorithm" description="Accepting tokens with no signature." href="./signature/jwt-alg-none/" />
+  <LinkCard title="Blank Secret" description="Tokens signed with an empty HMAC secret." href="./secrets/jwt-blank-secret/" />
+  <LinkCard title="HMAC Confusion" description="Using a public key as an HMAC secret." href="./signature/jwt-algorithm-confusion/" />
+  <LinkCard title="KID Injection" description="Injecting payloads via the Key ID header." href="./header-injection/jwt-kid-injection/" />
+  <LinkCard title="JWK Header Injection" description="Trusting a self-signed public key embedded in the token." href="./header-injection/jwt-jwk-injection/" />
+  <LinkCard title="JKU Header Injection" description="Fetching and trusting a JWKS from an attacker-controlled URL." href="./header-injection/jwt-jku-injection/" />
+  <LinkCard title="X5C Header Injection" description="Trusting a self-signed certificate embedded in the token." href="./header-injection/jwt-x5c-injection/" />
+  <LinkCard title="X5U Header Injection" description="Fetching and trusting a certificate from an attacker-controlled URL." href="./header-injection/jwt-x5u-injection/" />
+  <LinkCard title="Null Signature" description="Stripping the signature from the token." href="./signature/jwt-null-signature/" />
+  <LinkCard title="Psychic Signature" description="ECDSA verifiers accepting an all-zero (r=0, s=0) signature." href="./signature/jwt-psychic-signature/" />
+  <LinkCard title="Weak Secret" description="Brute-forcing common HMAC secrets." href="./secrets/jwt-weak-secret/" />
+  <LinkCard title="Signature Not Verified" description="Bypassing signature verification entirely." href="./signature/jwt-signature-not-verified/" />
+  <LinkCard title="Cross Service Relay Attack" description="Relaying tokens from other projects." href="./claims/jwt-cross-service-relay-attack/" />
+  <LinkCard title="Claim Fuzzing" description="Mutated claims (type confusion, oversized strings, special characters, null) crashing the server or leaking a stack trace." href="./claims/jwt-claim-fuzzing/" />
+  <LinkCard title="Timestamp Tampering" description="Extending exp, backdating iat, or clearing nbf independent of signature validation." href="./claims/jwt-timestamp-tampering/" />
+  <LinkCard title="Claims Not Validated" description="Accepting tokens from another issuer, without registered claims, or without scope." href="./claims/jwt-claims-not-validated/" />
+  <LinkCard title="Token Lifetime" description="Tokens without expiry, with a long lifetime, or accepted once expired." href="./claims/jwt-expired/" />
 </CardGrid>
 
 ## How to Test

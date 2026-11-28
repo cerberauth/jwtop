@@ -1,6 +1,8 @@
 ---
-title: find
+title: jwtop find
 description: Extrait des tokens JWT cachés dans du texte, un fichier ou stdin.
+sidebar:
+  order: 7
 ---
 
 Scanne un texte quelconque à la recherche de JWT embarqués et affiche chacun d'eux, un par ligne. Les JWT se retrouvent souvent cachés dans un paramètre de requête d'URL, un corps de réponse JSON, une page HTML, un fichier de log ou un en-tête `Authorization` — `find` les localise et les extrait pour qu'ils puissent être chaînés vers d'autres commandes `jwtop`.

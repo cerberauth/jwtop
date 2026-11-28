@@ -1,7 +1,7 @@
 id: "jwt.issuer_not_validated"
 name: "Issuer Not Validated"
 description: "Tests if the server accepts a token from another issuer of the same identity provider: the token given for another issuer, or the token under test re-signed with another iss claim."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-claims-not-validated"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-claims-not-validated"
 tags:
   - claims
 depends_on:

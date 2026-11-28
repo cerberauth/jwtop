@@ -1,7 +1,7 @@
 id: "jwt.scope_not_validated"
 name: "Scope Not Validated"
 description: "Tests if the server accepts the token re-signed without its scope and role claims (scope, scp, roles, role, groups, permissions, authorities)."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-claims-not-validated"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-claims-not-validated"
 tags:
   - claims
 depends_on:

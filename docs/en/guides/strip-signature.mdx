@@ -1,6 +1,8 @@
 ---
-title: Strip or remove a token signature
+title: Strip a token signature
 description: Produce an unsigned or alg=none token for testing signature validation logic.
+sidebar:
+  order: 6
 ---
 
 Some security tests require tokens with no valid signature — for example, checking that your server rejects unsigned tokens, or testing behaviour when `alg` is `"none"`. `jwtop sign --alg none` covers this case.

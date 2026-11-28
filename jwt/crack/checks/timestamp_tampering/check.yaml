@@ -1,7 +1,7 @@
 id: "jwt.timestamp_tampering"
 name: "Timestamp Tampering"
 description: "Tests if the server accepts a token re-signed with its exp claim pushed into the past, using the HMAC secret recovered by the secret check — i.e. whether exp is actually enforced once the signature checks out."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-timestamp-tampering"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-timestamp-tampering"
 tags:
   - hmac
 depends_on:

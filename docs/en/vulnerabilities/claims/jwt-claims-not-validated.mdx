@@ -1,0 +1,56 @@
+---
+title: JWT Claims Not Validated
+description: A vulnerability where a server accepts a correctly signed JWT whose issuer, audience, registered or scope claims were changed or removed.
+sidebar:
+  order: 3
+---
+
+<table>
+  <tr>
+    <th>Severity</th>
+    <td>High</td>
+  </tr>
+  <tr>
+    <th>Checks</th>
+    <td><code>jwt.issuer_not_validated</code>, <code>jwt.claim_removal</code>, <code>jwt.scope_not_validated</code></td>
+  </tr>
+  <tr>
+    <th>Classifications</th>
+    <td><a href="https://cwe.mitre.org/data/definitions/287.html">CWE-287: Improper Authentication</a>, <a href="https://cwe.mitre.org/data/definitions/285.html">CWE-285: Improper Authorization</a></td>
+  </tr>
+  <tr>
+    <th>OWASP Category</th>
+    <td><a href="https://owasp.org/API-Security/editions/2023/en/0xa2-broken-authentication/">OWASP API2:2023 Broken Authentication</a></td>
+  </tr>
+</table>
+
+A valid signature only proves who signed the token. The server must also check that the token was issued by the expected issuer (`iss`), for this API (`aud`), for a subject (`sub`), that it is within its validity window (`exp`, `nbf`, `iat`), and that it grants the scope or role the operation needs.
+
+## Checks
+
+| Check | What it sends | Requires |
+|-------|---------------|----------|
+| `jwt.issuer_not_validated` | The token given with `--other-issuer-token`, or the token re-signed with another `iss` | Another issuer's token, or the signing key |
+| `jwt.claim_removal` | The token re-signed without `iss`, `aud`, `sub`, `exp`, `nbf` and `iat`, one at a time and all together | The signing key |
+| `jwt.scope_not_validated` | The token re-signed without its `scope`, `scp`, `roles`, `role`, `groups`, `permissions` and `authorities` claims | The signing key |
+
+The token for another audience is covered by [`jwt.audience_not_validated`](./jwt-cross-service-relay-attack/).
+
+The signing key is the HMAC secret cracked by the weak secret check (add it with `--secret` when you know it), or the private key given with `--signing-key`. Without it, these checks are skipped with a reason.
+
+## How to test?
+
+```bash
+jwtop crack [token] --url [url] --secret [known-secret]
+jwtop crack [token] --url [url] --signing-key private.pem --other-issuer-token [token-from-another-issuer]
+```
+
+## What is the impact?
+
+A server that skips these checks accepts tokens issued for another tenant, realm or API of the same identity provider, tokens without a subject or expiry, and tokens stripped of their permissions, which leads to impersonation and privilege escalation.
+
+## How to remediate?
+
+- Configure the JWT library to require and verify `iss`, `aud`, `exp` and `sub`, with the expected issuer and audience values.
+- Reject tokens missing a required claim instead of treating it as optional.
+- Authorize each operation against the scope or role claims, and deny when they are absent.

@@ -1,7 +1,7 @@
 id: "jwt.fuzz"
 name: "Claim Fuzzing"
 description: "Mutates each claim (type confusion, oversized strings, special characters, null) and flags responses that diverge from the baseline: 5xx status, a leaked stack trace, or a wildly different body length."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-claim-fuzzing"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-claim-fuzzing"
 tags:
   - fuzzing
   - input-validation

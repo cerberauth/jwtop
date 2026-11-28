@@ -1,0 +1,14 @@
+---
+title: Header injection
+description: Checks for JWT header parameters that make the server trust attacker-controlled keys.
+sidebar:
+  order: 1
+---
+
+The scans in this group detect trusted header parameters that let an attacker supply the verification key.
+
+- [JWT JKU Header Injection](./jwt-jku-injection) — JWT JKU Header Injection occurs when a server fetches the token's `jku` header URL and trusts whatever JWKS it returns instead of validating the URL against an allowlist, allowing attackers to forge tokens verified against their own hosted key.
+- [JWT JWK Header Injection](./jwt-jwk-injection) — JWT JWK Header Injection (CVE-2018-0114) occurs when a server trusts a public key embedded directly in the token's `jwk` header instead of validating against a known keyset, allowing attackers to forge tokens signed with their own key.
+- [JWT KID Header Injection](./jwt-kid-injection) — JWT KID Header Injection occurs when the `kid` (Key ID) header parameter is passed unsanitized to a database query or file system lookup, allowing attackers to forge trusted tokens.
+- [JWT X5C Header Injection](./jwt-x5c-injection) — JWT X5C Header Injection occurs when a server trusts a certificate embedded directly in the token's `x5c` header instead of validating it against a pinned CA or certificate store, allowing attackers to forge tokens signed with their own self-signed certificate.
+- [JWT X5U Header Injection](./jwt-x5u-injection) — JWT X5U Header Injection occurs when a server fetches the token's `x5u` header URL and trusts whatever certificate it returns instead of validating it against a pinned CA or certificate store, allowing attackers to forge tokens verified against their own hosted certificate.

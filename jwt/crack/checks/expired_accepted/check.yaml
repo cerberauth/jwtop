@@ -1,7 +1,7 @@
 id: "jwt.expired_accepted"
 name: "Expired Token Accepted"
 description: "Tests if the server accepts the token under test while its exp claim is in the past."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-token-lifetime"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/claims/jwt-expired"
 tags:
   - claims
 depends_on:

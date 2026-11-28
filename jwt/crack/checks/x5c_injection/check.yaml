@@ -1,7 +1,7 @@
 id: "jwt.x5c_injection"
 name: "X5C Header Injection"
 description: "Tests if the server trusts a self-signed certificate embedded in the token's x5c header instead of validating it against a pinned CA or certificate store."
-link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/jwt-x5c-injection"
+link: "https://www.cerberauth.com/docs/jwtop/vulnerabilities/header-injection/jwt-x5c-injection"
 tags:
   - injection
   - asymmetric
