@@ -27,7 +27,7 @@ func TestCheck_Skip_RunsWhenOnline(t *testing.T) {
 	assert.Empty(t, reason)
 }
 
-func TestCheck_Run_VulnerableWhenBaselineBelow400(t *testing.T) {
+func TestCheck_Run_VulnerableWhenBaseline2xx(t *testing.T) {
 	store := harnessx.NewStaticResultStore(
 		harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 200}),
 	)
@@ -43,6 +43,19 @@ func TestCheck_Run_VulnerableWhenBaselineBelow400(t *testing.T) {
 func TestCheck_Run_NotVulnerableWhenBaseline401(t *testing.T) {
 	store := harnessx.NewStaticResultStore(
 		harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 401}),
+	)
+	target := harnessx.Target{Data: &checkbase.ProbeCtx{InvalidToken: "invalid.token.here"}}
+
+	result, err := noverification.Check.Run(context.Background(), target, store)
+	assert.NoError(t, err)
+	pr, ok := harnessx.DataAs[checkbase.ProbeResult](result)
+	assert.True(t, ok)
+	assert.False(t, pr.Vulnerable)
+}
+
+func TestCheck_Run_NotVulnerableWhenBaselineRedirects(t *testing.T) {
+	store := harnessx.NewStaticResultStore(
+		harnessx.ResultData(checkbase.CheckIDBaseline, harnessx.Snapshot{StatusCode: 302}),
 	)
 	target := harnessx.Target{Data: &checkbase.ProbeCtx{InvalidToken: "invalid.token.here"}}
 

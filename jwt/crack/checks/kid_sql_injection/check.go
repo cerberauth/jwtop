@@ -41,7 +41,7 @@ var Check = checkdef.NewCheck(Def,
 				return r, nil
 			}
 
-			result, err := checkbase.SendProbe(ctx, pctx.Probe, target.URL, token, pctx.TokenLocation, store)
+			result, err := checkbase.SendProbe(ctx, pctx.Probe, target.URL, token, pctx.TokenLocation, store, pctx.NewRequest)
 			if err != nil {
 				return harnessx.Result{}, err
 			}
